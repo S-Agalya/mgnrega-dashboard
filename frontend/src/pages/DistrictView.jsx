@@ -20,45 +20,89 @@ import LowLiteracyWidget from "../components/LowLiteracyWidget";
 
 export default function DistrictView() {
   const { name } = useParams();
-  const [data, setData] = useState(null);
-
-  const dummyData = {
-    district: "Chennai",
-    employed: 1200,
-    jobsCreated: 300,
-    wagesPaid: 45000,
-    monthlyData: [
-      { month: "Jan", employed: 100, jobs: 25, wages: 5000 },
-      { month: "Feb", employed: 120, jobs: 30, wages: 5500 },
-      { month: "Mar", employed: 110, jobs: 28, wages: 5200 },
-      { month: "Apr", employed: 130, jobs: 35, wages: 5800 },
-    ],
-    positiveOutcomes: [
-      "Increased employment opportunities",
-      "Timely and transparent wage payments",
-      "Improved participation from rural women",
-    ],
-    issuesFaced: [
-      "Delayed fund release in certain panchayats",
-      "Shortage of raw materials during peak demand",
-      "Low literacy affecting work awareness programs",
-    ],
-    lowLiteracyEmployment: 150,
-    employmentGrowthRate: 8.5,
-  };
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [districtData, setDistrictData] = useState(null);
+  const [monthlyStats, setMonthlyStats] = useState([]);
+  const [insights, setInsights] = useState({
+    positiveOutcomes: [],
+    issuesFaced: [],
+    analyticalInsights: []
+  });
 
   useEffect(() => {
-    if (name) setData(dummyData);
+    const fetchDistrictData = async () => {
+      if (!name) return;
+      setLoading(true);
+      setError(null);
+
+      try {
+        // Fetch main district data
+        const dataResponse = await fetch(
+          `${import.meta.env.VITE_API_BASE_URL}/api/mgnrega/district/${name}`
+        );
+        if (!dataResponse.ok) throw new Error('Failed to fetch district data');
+        const data = await dataResponse.json();
+        setDistrictData(data);
+
+        // Fetch district stats
+        const statsResponse = await fetch(
+          `${import.meta.env.VITE_API_BASE_URL}/api/mgnrega/district/${name}/stats`
+        );
+        if (!statsResponse.ok) throw new Error('Failed to fetch district stats');
+        const stats = await statsResponse.json();
+        setMonthlyStats(stats);
+
+        // Fetch insights
+        const insightsResponse = await fetch(
+          `${import.meta.env.VITE_API_BASE_URL}/api/mgnrega/district/${name}/insights`
+        );
+        if (!insightsResponse.ok) throw new Error('Failed to fetch insights');
+        const insightsData = await insightsResponse.json();
+        setInsights(insightsData);
+
+      } catch (err) {
+        setError(err.message);
+        console.error('Error fetching district data:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDistrictData();
   }, [name]);
 
-  if (!name)
+  if (!name) {
     return (
       <div className="p-4 text-center text-red-600">
         No district selected.
       </div>
     );
-  if (!data)
-    return <div className="p-4 text-center">Loading district data...</div>;
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+        <div className="text-lg text-gray-600">Loading district data...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-4 text-center text-red-600">
+        Error: {error}
+      </div>
+    );
+  }
+
+  if (!districtData) {
+    return (
+      <div className="p-4 text-center text-red-600">
+        No data available for this district.
+      </div>
+    );
+  }
 
   const COLORS = ["#2563eb", "#10b981", "#facc15", "#f97316"];
   const HEADER_HEIGHT = 64;
@@ -79,14 +123,19 @@ export default function DistrictView() {
         >
           {/* District Title */}
           <h1 className="text-3xl font-bold text-gray-800 mb-2">
-            District: <span className="text-indigo-700">{data.district}</span>
+            District: <span className="text-indigo-700">{districtData.district_name}</span>
           </h1>
 
           {/* Metric Summary Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-            <DistrictCard title="People Employed" value={data.employed} icon="👷" />
-            <DistrictCard title="Jobs Created" value={data.jobsCreated} icon="🛠️" />
-            <DistrictCard title="Wages Paid" value={`₹${data.wagesPaid}`} icon="💰" />
+            {districtData.metrics.map((metric, index) => (
+              <DistrictCard
+                key={metric.metric_name}
+                title={metric.metric_name}
+                value={metric.metric_value}
+                icon={metric.metric_icon}
+              />
+            ))}
           </div>
 
           {/* Overall Performance Bar Chart */}
@@ -95,17 +144,11 @@ export default function DistrictView() {
               📊 Overall Performance
             </h2>
             <ResponsiveContainer width="100%" height={250}>
-              <BarChart
-                data={[
-                  { metric: "Employed", value: data.employed },
-                  { metric: "Jobs", value: data.jobsCreated },
-                  { metric: "Wages", value: data.wagesPaid },
-                ]}
-              >
-                <XAxis dataKey="metric" />
+              <BarChart data={districtData.metrics}>
+                <XAxis dataKey="metric_name" />
                 <YAxis />
                 <Tooltip />
-                <Bar dataKey="value" fill="#2563eb" radius={[8, 8, 0, 0]} />
+                <Bar dataKey="metric_value" fill="#2563eb" radius={[8, 8, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -115,14 +158,20 @@ export default function DistrictView() {
             {/* Pie Chart */}
             <div className="bg-white p-6 rounded-2xl shadow-lg">
               <h2 className="text-xl font-semibold mb-3 text-gray-700">
-                🥧 Jobs Distribution
+                🥧 Work Status Distribution
               </h2>
               <ResponsiveContainer width="100%" height={250}>
                 <PieChart>
                   <Pie
                     data={[
-                      { name: "Completed", value: 200 },
-                      { name: "Pending", value: 100 },
+                      { 
+                        name: "Completed Works", 
+                        value: monthlyStats.completedWorks 
+                      },
+                      { 
+                        name: "Ongoing Works", 
+                        value: monthlyStats.ongoingWorks 
+                      }
                     ]}
                     dataKey="value"
                     nameKey="name"
@@ -133,29 +182,33 @@ export default function DistrictView() {
                       <Cell key={index} fill={color} />
                     ))}
                   </Pie>
+                  <Tooltip />
                 </PieChart>
               </ResponsiveContainer>
             </div>
 
-            {/* Observation 1 */}
+            {/* Employment Growth Rate */}
             <div className="bg-white p-6 rounded-2xl shadow-lg flex flex-col justify-center items-center">
               <h2 className="text-xl font-semibold mb-2 text-gray-700">
                 📈 Employment Growth Rate
               </h2>
               <p className="text-3xl font-bold text-green-600">
-                {data.employmentGrowthRate}%
+                {monthlyStats.employmentGrowthRate}%
+              </p>
+              <p className="text-sm text-gray-500 mt-2">
+                Year over Year
               </p>
             </div>
 
-            {/* Observation 2 */}
+            {/* Development Index */}
             <div className="bg-white p-6 rounded-2xl shadow-lg flex flex-col justify-center items-center">
               <h2 className="text-xl font-semibold mb-2 text-gray-700">
-                📘 Low Literacy Employment
+                📊 Development Index
               </h2>
               <p className="text-3xl font-bold text-blue-600">
-                {data.lowLiteracyEmployment}
+                {monthlyStats.developmentIndex?.toFixed(2) || 'N/A'}
               </p>
-              <LowLiteracyWidget label="Low Literacy Employment" icon="📗" />
+              <LowLiteracyWidget value={monthlyStats.developmentIndex} icon="📈" />
             </div>
           </div>
 
@@ -163,28 +216,46 @@ export default function DistrictView() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="bg-white p-6 rounded-2xl shadow-lg">
               <h2 className="text-xl font-semibold mb-3 text-gray-700">
-                📆 Jobs Trend (Monthly)
+                📆 Employment Trend
               </h2>
               <ResponsiveContainer width="100%" height={250}>
-                <LineChart data={data.monthlyData}>
+                <LineChart data={monthlyStats.employmentGrowth}>
                   <XAxis dataKey="month" />
                   <YAxis />
                   <Tooltip />
-                  <Line type="monotone" dataKey="jobs" stroke="#facc15" strokeWidth={2} />
+                  <Line 
+                    type="monotone" 
+                    dataKey="employed" 
+                    stroke="#facc15" 
+                    strokeWidth={2} 
+                  />
                 </LineChart>
               </ResponsiveContainer>
             </div>
 
             <div className="bg-white p-6 rounded-2xl shadow-lg">
               <h2 className="text-xl font-semibold mb-3 text-gray-700">
-                💵 Wages Trend (Monthly)
+                💵 Jobs vs Wages Trend
               </h2>
               <ResponsiveContainer width="100%" height={250}>
-                <LineChart data={data.monthlyData}>
+                <LineChart data={monthlyStats.jobsWages}>
                   <XAxis dataKey="month" />
                   <YAxis />
                   <Tooltip />
-                  <Line type="monotone" dataKey="wages" stroke="#6366f1" strokeWidth={2} />
+                  <Line 
+                    type="monotone" 
+                    name="Jobs Created"
+                    dataKey="jobs_created" 
+                    stroke="#2563eb" 
+                    strokeWidth={2} 
+                  />
+                  <Line 
+                    type="monotone" 
+                    name="Wages Paid"
+                    dataKey="wages_paid" 
+                    stroke="#10b981" 
+                    strokeWidth={2} 
+                  />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -197,16 +268,16 @@ export default function DistrictView() {
           style={{ height: `calc(100vh - ${HEADER_HEIGHT}px)` }}
         >
           <h2 className="text-2xl font-bold text-yellow-400">
-            📋 {data.district} Insights
+            📋 {districtData.district_name} Insights
           </h2>
 
           {/* Positive Observations */}
           <div className="bg-green-800/40 p-4 rounded-xl">
             <h3 className="font-semibold text-green-300 mb-2">
-              ✅ Positive Observations
+              ✅ Positive Outcomes
             </h3>
             <ul className="list-disc list-inside text-gray-200">
-              {data.positiveOutcomes.map((note, i) => (
+              {insights.positiveOutcomes.map((note, i) => (
                 <li key={i}>{note}</li>
               ))}
             </ul>
@@ -218,22 +289,21 @@ export default function DistrictView() {
               ⚠️ Key Issues
             </h3>
             <ul className="list-disc list-inside text-gray-200">
-              {data.issuesFaced.map((issue, i) => (
+              {insights.issuesFaced.map((issue, i) => (
                 <li key={i}>{issue}</li>
               ))}
             </ul>
           </div>
 
-          {/* Observations Summary */}
+          {/* Analytical Insights */}
           <div className="bg-blue-800/40 p-4 rounded-xl">
             <h3 className="font-semibold text-blue-300 mb-2">
               🔍 Analytical Insights
             </h3>
             <ul className="list-disc list-inside text-gray-200">
-              <li>Growth Rate: {data.employmentGrowthRate}%</li>
-              <li>Low Literacy Employment: {data.lowLiteracyEmployment}</li>
-              <li>Steady increase in job creation across months</li>
-              <li>Consistent wage trend matching employment growth</li>
+              {insights.analytical.map((insight, i) => (
+                <li key={i}>{insight}</li>
+              ))}
             </ul>
           </div>
 

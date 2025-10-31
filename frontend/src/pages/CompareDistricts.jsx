@@ -1,302 +1,454 @@
 import React, { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
 import {
   BarChart, Bar, LineChart, Line, AreaChart, Area,
   RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
-  PieChart, Pie, CartesianGrid, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer
+  CartesianGrid, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer
 } from "recharts";
+import { Link } from "react-router-dom";
 
 const CompareDistricts = () => {
   const [districts, setDistricts] = useState([]);
-  const [selectedDistricts, setSelectedDistricts] = useState([]);
-  const [chartData, setChartData] = useState([]);
+  const [district1, setDistrict1] = useState("");
+  const [district2, setDistrict2] = useState("");
+  const [comparisonData, setComparisonData] = useState(null);
   const [notes, setNotes] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [winners, setWinners] = useState({});
 
+  const DISTRICT_COLORS = {
+    district1: "#3B82F6", // Blue
+    district2: "#10B981", // Green
+  };
+
+  // Fetch all districts on mount
   useEffect(() => {
-    // Fetch all districts on component mount
     fetch(`${import.meta.env.VITE_API_BASE_URL}/api/mgnrega/districts`)
       .then((res) => res.json())
       .then((data) => setDistricts(data))
       .catch((err) => console.error("Error fetching districts:", err));
   }, []);
 
+  // Handle comparison
   const handleCompare = async () => {
-    if (selectedDistricts.length === 0) {
-      alert("Please select at least one district to compare");
+    if (!district1 || !district2) {
+      alert("Please select two districts to compare");
+      return;
+    }
+
+    if (district1 === district2) {
+      alert("Please select two different districts");
       return;
     }
 
     setLoading(true);
+    setError(null);
+    
     try {
-      const response = await fetch(
-        `${import.meta.env.VITE_API_BASE_URL}/api/mgnrega/compare?districts=${selectedDistricts.join(",")}`
-      );
+      const url = `${import.meta.env.VITE_API_BASE_URL}/api/mgnrega/compare?districts=${district1},${district2}`;
+      const response = await fetch(url);
+      
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      
       const data = await response.json();
-      setChartData(transformChartData(data));
-      generateNotes(data);
+      
+      if (!data.chartData || data.chartData.length === 0) {
+        setError("No data returned from API");
+        setComparisonData(null);
+      } else {
+        setComparisonData(data);
+        calculateWinners(data);
+        generateInsights(data);
+      }
     } catch (err) {
-      console.error("Error fetching comparison data:", err);
-      alert("Error fetching comparison data. Please try again.");
+      console.error("Error comparing districts:", err);
+      setError(`Failed to fetch comparison data: ${err.message}`);
+      setComparisonData(null);
     } finally {
       setLoading(false);
     }
   };
 
-  const transformChartData = (data) => {
-    // Transform the data for charts
-    const districtMetrics = Object.keys(data).map(metricName => {
-      const districtData = data[metricName];
-      return {
-        metricName,
-        ...districtData
-      };
+  // Calculate which district wins each metric
+  const calculateWinners = (data) => {
+    const winnersMap = {};
+    data.chartData.forEach((metric) => {
+      const val1 = metric[district1] || 0;
+      const val2 = metric[district2] || 0;
+      winnersMap[metric.metricName] = val1 > val2 ? district1 : district2;
     });
-    return districtMetrics;
+    setWinners(winnersMap);
   };
 
-  const generateNotes = (data) => {
-    if (!data || Object.keys(data).length === 0) {
-      setNotes(["No data available for selected districts."]);
+  // Generate insights from comparison data
+  const generateInsights = (data) => {
+    if (!data || !data.chartData || data.chartData.length === 0) {
+      setNotes(["No data available for comparison."]);
       return;
     }
 
-    const wageRateData = data['Average Wage Rate'] || {};
-    const employmentData = data['Employment Days'] || {};
+    const insights = [];
+    let district1Wins = 0;
+    let district2Wins = 0;
+    
+    data.chartData.forEach((metric) => {
+      const dist1Value = metric[district1];
+      const dist2Value = metric[district2];
+      
+      if (dist1Value !== undefined && dist2Value !== undefined) {
+        if (dist1Value > dist2Value) district1Wins++;
+        else district2Wins++;
 
-    const districts = Object.keys(wageRateData);
-    if (districts.length === 0) {
-      setNotes(["No comparable metrics available."]);
-      return;
-    }
+        const diff = Math.abs(dist1Value - dist2Value);
+        const higherDistrict = dist1Value > dist2Value ? district1 : district2;
+        const lowerValue = Math.min(dist1Value, dist2Value);
+        
+        if (lowerValue > 0) {
+          const percentage = ((diff / lowerValue) * 100).toFixed(1);
+          insights.push({
+            metric: metric.metricName,
+            winner: higherDistrict,
+            percentage,
+            value1: dist1Value,
+            value2: dist2Value
+          });
+        }
+      }
+    });
 
-    const highestWage = districts.reduce((a, b) => 
-      wageRateData[a] > wageRateData[b] ? a : b
-    );
-    const lowestWage = districts.reduce((a, b) => 
-      wageRateData[a] < wageRateData[b] ? a : b
-    );
-    const highestEmployment = districts.reduce((a, b) => 
-      employmentData[a] > employmentData[b] ? a : b
-    );
+    // Summary insight
+    const overallWinner = district1Wins > district2Wins ? district1 : district2;
+    insights.unshift({
+      summary: true,
+      text: `🏆 ${overallWinner} leads overall with ${Math.max(district1Wins, district2Wins)} out of ${data.chartData.length} metrics`,
+      district1Wins,
+      district2Wins
+    });
 
-    const insights = [
-      `💰 ${highestWage} leads with the highest average wage rate of ₹${wageRateData[highestWage].toFixed(2)}/day`,
-      `📉 ${lowestWage} has the lowest wage rate of ₹${wageRateData[lowestWage].toFixed(2)}/day`,
-      `👷 ${highestEmployment} provides the most employment days per household (${employmentData[highestEmployment]?.toFixed(1) || 0} days)`,
-      `📊 Wage disparity: ${
-        Math.abs(wageRateData[highestWage] - wageRateData[lowestWage]) > 40
-          ? "High variation between districts"
-          : "Moderate consistency across districts"
-      }`
-    ];
     setNotes(insights);
   };
 
+  const resetComparison = () => {
+    setDistrict1("");
+    setDistrict2("");
+    setComparisonData(null);
+    setNotes([]);
+    setWinners({});
+  };
+
   return (
-    <div className="compare-page bg-gray-50 min-h-screen p-6 text-gray-800">
-      <div className="grid grid-cols-[70%_30%] gap-6">
-        {/* Left Side: Visualization Grid */}
-        <div className="charts bg-white rounded-2xl shadow-md p-6 overflow-y-scroll h-[90vh]">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-bold text-blue-600">
-              📊 District Comparison Dashboard
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
+      {/* Header */}
+      <header className="bg-gradient-to-r from-indigo-800 via-blue-700 to-indigo-900 text-white py-5 px-8 shadow-lg">
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold">District Comparison</h1>
+          <div className="flex gap-6">
+            <Link to="/" className="hover:text-yellow-300 transition">Dashboard</Link>
+            <Link to="/compare" className="hover:text-yellow-300 transition">Compare</Link>
+          </div>
+        </div>
+      </header>
+
+      <div className="p-6">
+        {/* Selection Panel */}
+        <div className="bg-white rounded-2xl shadow-xl p-6 mb-6">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-3">
+              <span className="text-3xl">⚖️</span>
+              Select Districts to Compare
             </h2>
-            <Link 
-              to="/" 
-              className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors duration-200"
-            >
-              <span>←</span> Back to Home
-            </Link>
+            {comparisonData && (
+              <button
+                onClick={resetComparison}
+                className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition flex items-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Reset
+              </button>
+            )}
           </div>
 
-          {loading ? (
-            <div className="flex items-center justify-center h-full">
-              <div className="text-lg text-gray-600">Loading comparisons...</div>
-            </div>
-          ) : chartData.length > 0 ? (
-            <div className="grid grid-cols-2 gap-6">
-              {/* Wage Rate Chart */}
-              <div className="bg-blue-50 rounded-2xl p-4 shadow">
-                <h3 className="font-semibold mb-2 text-blue-700">Average Wage Rate</h3>
-                <ResponsiveContainer width="100%" height={250}>
-                  <BarChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="metricName" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    {selectedDistricts.map((district, index) => (
-                      <Bar 
-                        key={district} 
-                        dataKey={district} 
-                        fill={`hsl(${index * (360 / selectedDistricts.length)}, 70%, 50%)`} 
-                      />
-                    ))}
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-
-              {/* Employment Days Chart */}
-              <div className="bg-green-50 rounded-2xl p-4 shadow">
-                <h3 className="font-semibold mb-2 text-green-700">Employment Days</h3>
-                <ResponsiveContainer width="100%" height={250}>
-                  <LineChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="metricName" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    {selectedDistricts.map((district, index) => (
-                      <Line 
-                        key={district} 
-                        type="monotone" 
-                        dataKey={district} 
-                        stroke={`hsl(${index * (360 / selectedDistricts.length)}, 70%, 50%)`}
-                        strokeWidth={2} 
-                      />
-                    ))}
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-
-              {/* Total Workers Chart */}
-              <div className="bg-yellow-50 rounded-2xl p-4 shadow">
-                <h3 className="font-semibold mb-2 text-yellow-700">Total Workers</h3>
-                <ResponsiveContainer width="100%" height={250}>
-                  <AreaChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="metricName" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    {selectedDistricts.map((district, index) => (
-                      <Area
-                        key={district}
-                        type="monotone"
-                        dataKey={district}
-                        fill={`hsl(${index * (360 / selectedDistricts.length)}, 70%, 50%)`}
-                        fillOpacity={0.3}
-                        stroke={`hsl(${index * (360 / selectedDistricts.length)}, 70%, 50%)`}
-                      />
-                    ))}
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-
-              {/* Completed Works Chart */}
-              <div className="bg-purple-50 rounded-2xl p-4 shadow">
-                <h3 className="font-semibold mb-2 text-purple-700">Completed Works</h3>
-                <ResponsiveContainer width="100%" height={250}>
-                  <BarChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="metricName" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    {selectedDistricts.map((district, index) => (
-                      <Bar
-                        key={district}
-                        dataKey={district}
-                        fill={`hsl(${index * (360 / selectedDistricts.length)}, 70%, 50%)`}
-                        fillOpacity={0.8}
-                      />
-                    ))}
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-
-              {/* Overall Performance Radar */}
-              <div className="bg-pink-50 rounded-2xl p-4 shadow col-span-2">
-                <h3 className="font-semibold mb-2 text-pink-700">Overall District Performance</h3>
-                <ResponsiveContainer width="100%" height={300}>
-                  <RadarChart data={chartData}>
-                    <PolarGrid />
-                    <PolarAngleAxis dataKey="metricName" />
-                    <PolarRadiusAxis />
-                    {selectedDistricts.map((district, index) => (
-                      <Radar
-                        key={district}
-                        name={district}
-                        dataKey={district}
-                        stroke={`hsl(${index * (360 / selectedDistricts.length)}, 70%, 50%)`}
-                        fill={`hsl(${index * (360 / selectedDistricts.length)}, 70%, 50%)`}
-                        fillOpacity={0.5}
-                      />
-                    ))}
-                    <Legend />
-                  </RadarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          ) : (
-            <div className="text-gray-500 italic text-center mt-10">
-              Select districts and click Compare to view analytics
-            </div>
-          )}
-        </div>
-
-        {/* Right Side: Filters + Observations */}
-        <div className="bg-white p-5 rounded-2xl shadow-md h-[90vh] sticky top-4 flex flex-col justify-between">
-          <div>
-            <h2 className="text-lg font-semibold text-blue-600 mb-4">Select Districts to Compare</h2>
-
-            <div className="mb-4">
-              <label className="block mb-2 font-medium">Available Districts:</label>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
+            {/* District 1 Selection */}
+            <div className="space-y-3">
+              <label className="block text-sm font-semibold text-gray-700">District 1</label>
               <select
-                multiple
-                className="w-full h-48 border rounded-lg p-2"
-                value={selectedDistricts}
-                onChange={(e) => {
-                  const selected = Array.from(e.target.selectedOptions, opt => opt.value);
-                  setSelectedDistricts(selected);
-                }}
+                value={district1}
+                onChange={(e) => setDistrict1(e.target.value)}
+                className="w-full p-4 border-2 border-blue-200 rounded-xl focus:ring-4 focus:ring-blue-200 focus:border-blue-500 transition text-lg font-medium"
               >
+                <option value="">Select First District</option>
                 {districts.map((d) => (
-                  <option key={d.district_name} value={d.district_name}>
+                  <option key={d.district_name} value={d.district_name} disabled={d.district_name === district2}>
                     {d.district_name}
                   </option>
                 ))}
               </select>
+              {district1 && (
+                <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-4 rounded-xl">
+                  <p className="text-sm opacity-90">Selected:</p>
+                  <p className="text-xl font-bold">{district1}</p>
+                </div>
+              )}
             </div>
 
-            <button
-              onClick={handleCompare}
-              disabled={loading}
-              className={`w-full py-2 rounded-lg text-white font-medium transition-colors ${
-                loading 
-                  ? 'bg-gray-400 cursor-not-allowed' 
-                  : 'bg-blue-600 hover:bg-blue-700'
-              }`}
-            >
-              {loading ? 'Comparing...' : 'Compare Districts'}
-            </button>
+            {/* VS Badge */}
+            <div className="flex items-center justify-center">
+              <div className="bg-gradient-to-r from-purple-500 to-pink-500 text-white w-20 h-20 rounded-full flex items-center justify-center text-2xl font-bold shadow-lg transform hover:scale-110 transition">
+                VS
+              </div>
+            </div>
+
+            {/* District 2 Selection */}
+            <div className="space-y-3">
+              <label className="block text-sm font-semibold text-gray-700">District 2</label>
+              <select
+                value={district2}
+                onChange={(e) => setDistrict2(e.target.value)}
+                className="w-full p-4 border-2 border-green-200 rounded-xl focus:ring-4 focus:ring-green-200 focus:border-green-500 transition text-lg font-medium"
+              >
+                <option value="">Select Second District</option>
+                {districts.map((d) => (
+                  <option key={d.district_name} value={d.district_name} disabled={d.district_name === district1}>
+                    {d.district_name}
+                  </option>
+                ))}
+              </select>
+              {district2 && (
+                <div className="bg-gradient-to-r from-green-500 to-green-600 text-white p-4 rounded-xl">
+                  <p className="text-sm opacity-90">Selected:</p>
+                  <p className="text-xl font-bold">{district2}</p>
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* Smart Observations */}
-          <div className="mt-4 bg-gray-50 p-4 rounded-lg border border-gray-200">
-            <h3 className="text-lg font-semibold text-blue-700 mb-3">
-              🧠 Insights & Observations
-            </h3>
-            {notes.length > 0 ? (
-              <ul className="space-y-2">
-                {notes.map((note, index) => (
-                  <li 
-                    key={index}
-                    className="text-sm text-gray-700 leading-relaxed"
-                  >
-                    {note}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-gray-500 text-sm">
-                Run a comparison to view insights
-              </p>
-            )}
+          {/* Compare Button */}
+          <div className="flex justify-center mt-6">
+            <button
+              onClick={handleCompare}
+              disabled={!district1 || !district2 || loading}
+              className="bg-gradient-to-r from-indigo-600 to-blue-600 text-white px-12 py-4 rounded-xl hover:from-indigo-700 hover:to-blue-700 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed transition shadow-lg text-lg font-bold flex items-center gap-3"
+            >
+              {loading ? (
+                <>
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
+                  Comparing...
+                </>
+              ) : (
+                <>
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                  </svg>
+                  Compare Districts
+                </>
+              )}
+            </button>
           </div>
         </div>
+
+        {/* Error Display */}
+        {error && (
+          <div className="bg-red-50 border-2 border-red-200 text-red-700 p-6 rounded-2xl mb-6">
+            <div className="flex items-center gap-3">
+              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+              <div>
+                <p className="font-semibold">Error:</p>
+                <p>{error}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Results Section */}
+        {!loading && comparisonData?.chartData?.length > 0 ? (
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-6">
+            {/* Charts Section */}
+            <div className="space-y-6">
+              {/* Summary Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-white p-6 rounded-2xl shadow-lg text-center">
+                  <div className="text-4xl mb-2">📊</div>
+                  <p className="text-gray-600 text-sm">Total Metrics</p>
+                  <p className="text-3xl font-bold text-indigo-600">{comparisonData.chartData.length}</p>
+                </div>
+                <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white p-6 rounded-2xl shadow-lg text-center">
+                  <div className="text-4xl mb-2">🏆</div>
+                  <p className="text-blue-100 text-sm">{district1} Wins</p>
+                  <p className="text-3xl font-bold">{notes[0]?.district1Wins || 0}</p>
+                </div>
+                <div className="bg-gradient-to-br from-green-500 to-green-600 text-white p-6 rounded-2xl shadow-lg text-center">
+                  <div className="text-4xl mb-2">🏆</div>
+                  <p className="text-green-100 text-sm">{district2} Wins</p>
+                  <p className="text-3xl font-bold">{notes[0]?.district2Wins || 0}</p>
+                </div>
+              </div>
+
+              {/* Bar Chart */}
+              <div className="bg-white rounded-2xl shadow-lg p-6">
+                <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                  <span className="text-2xl">📊</span>
+                  Side-by-Side Comparison
+                </h3>
+                <ResponsiveContainer width="100%" height={400}>
+                  <BarChart data={comparisonData.chartData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis 
+                      dataKey="metricName" 
+                      angle={-15} 
+                      textAnchor="end" 
+                      height={100}
+                      fontSize={12}
+                    />
+                    <YAxis />
+                    <Tooltip />
+                    <Legend />
+                    <Bar dataKey={district1} fill={DISTRICT_COLORS.district1} name={district1} radius={[8, 8, 0, 0]} />
+                    <Bar dataKey={district2} fill={DISTRICT_COLORS.district2} name={district2} radius={[8, 8, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Radar Chart */}
+              <div className="bg-white rounded-2xl shadow-lg p-6">
+                <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                  <span className="text-2xl">🎯</span>
+                  Overall Performance Radar
+                </h3>
+                <ResponsiveContainer width="100%" height={400}>
+                  <RadarChart data={comparisonData.chartData}>
+                    <PolarGrid />
+                    <PolarAngleAxis dataKey="metricName" fontSize={10} />
+                    <PolarRadiusAxis />
+                    <Radar
+                      name={district1}
+                      dataKey={district1}
+                      stroke={DISTRICT_COLORS.district1}
+                      fill={DISTRICT_COLORS.district1}
+                      fillOpacity={0.6}
+                    />
+                    <Radar
+                      name={district2}
+                      dataKey={district2}
+                      stroke={DISTRICT_COLORS.district2}
+                      fill={DISTRICT_COLORS.district2}
+                      fillOpacity={0.6}
+                    />
+                    <Legend />
+                    <Tooltip />
+                  </RadarChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Line Chart */}
+              <div className="bg-white rounded-2xl shadow-lg p-6">
+                <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                  <span className="text-2xl">📈</span>
+                  Performance Trend
+                </h3>
+                <ResponsiveContainer width="100%" height={350}>
+                  <LineChart data={comparisonData.chartData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis 
+                      dataKey="metricName" 
+                      angle={-15} 
+                      textAnchor="end" 
+                      height={100}
+                      fontSize={12}
+                    />
+                    <YAxis />
+                    <Tooltip />
+                    <Legend />
+                    <Line 
+                      type="monotone" 
+                      dataKey={district1} 
+                      stroke={DISTRICT_COLORS.district1}
+                      strokeWidth={3}
+                      name={district1}
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey={district2} 
+                      stroke={DISTRICT_COLORS.district2}
+                      strokeWidth={3}
+                      name={district2}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* Insights Panel */}
+            <div className="space-y-6">
+              {/* Winner Summary */}
+              {notes[0]?.summary && (
+                <div className="bg-gradient-to-br from-yellow-400 to-orange-500 text-white p-6 rounded-2xl shadow-xl">
+                  <h3 className="text-xl font-bold mb-3 flex items-center gap-2">
+                    <span className="text-2xl">🏆</span>
+                    Overall Winner
+                  </h3>
+                  <p className="text-lg font-semibold">{notes[0].text}</p>
+                  <div className="mt-4 grid grid-cols-2 gap-3">
+                    <div className="bg-white/20 p-3 rounded-lg">
+                      <p className="text-sm opacity-90">{district1}</p>
+                      <p className="text-2xl font-bold">{notes[0].district1Wins}</p>
+                    </div>
+                    <div className="bg-white/20 p-3 rounded-lg">
+                      <p className="text-sm opacity-90">{district2}</p>
+                      <p className="text-2xl font-bold">{notes[0].district2Wins}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Detailed Insights */}
+              <div className="bg-white rounded-2xl shadow-lg p-6 max-h-[600px] overflow-y-auto">
+                <h3 className="text-xl font-bold mb-4 flex items-center gap-2 sticky top-0 bg-white pb-3">
+                  <span className="text-2xl">💡</span>
+                  Detailed Insights
+                </h3>
+                <div className="space-y-3">
+                  {notes.slice(1).map((insight, index) => (
+                    <div 
+                      key={index}
+                      className="p-4 bg-gradient-to-r from-blue-50 to-green-50 rounded-xl border-l-4 border-indigo-500 hover:shadow-md transition"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1">
+                          <p className="font-semibold text-gray-800 mb-1">{insight.metric}</p>
+                          <p className="text-sm text-gray-600">
+                            <span className="font-bold" style={{ color: insight.winner === district1 ? DISTRICT_COLORS.district1 : DISTRICT_COLORS.district2 }}>
+                              {insight.winner}
+                            </span> leads by <span className="font-bold text-orange-600">{insight.percentage}%</span>
+                          </p>
+                          <div className="flex gap-3 mt-2 text-xs">
+                            <span className="text-blue-600 font-semibold">{district1}: {insight.value1?.toLocaleString()}</span>
+                            <span className="text-green-600 font-semibold">{district2}: {insight.value2?.toLocaleString()}</span>
+                          </div>
+                        </div>
+                        <span className="text-2xl">
+                          {insight.winner === district1 ? "🔵" : "🟢"}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : !loading && !error ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <svg className="w-32 h-32 text-gray-300 mb-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+            <h3 className="text-2xl font-bold text-gray-600 mb-2">No Comparison Yet</h3>
+            <p className="text-gray-500">Select two districts and click "Compare Districts" to view the comparison</p>
+          </div>
+        ) : null}
       </div>
     </div>
   );

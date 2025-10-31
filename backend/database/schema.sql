@@ -8,7 +8,7 @@ DROP TABLE IF EXISTS district_config CASCADE;
 -- Create district configuration table
 CREATE TABLE district_config (
     id SERIAL PRIMARY KEY,
-    district_name VARCHAR(100) NOT NULL,
+    district_name VARCHAR(100) NOT NULL UNIQUE,
     state_name VARCHAR(100) NOT NULL,
     is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -61,16 +61,7 @@ CREATE INDEX idx_district_insights ON district_insights(district_id, insight_typ
 CREATE INDEX idx_monthly_stats ON monthly_district_stats(district_id, year, month);
 CREATE INDEX idx_district_outcomes ON district_outcomes(district_id, outcome_type);
 
--- Create function to update timestamp
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = CURRENT_TIMESTAMP;
-    RETURN NEW;
-END;
-$$ language 'plpgsql';
-
--- Insert districts
+-- Insert Tamil Nadu districts
 INSERT INTO district_config (district_name, state_name, is_active) VALUES
 ('Chennai', 'Tamil Nadu', true),
 ('Madurai', 'Tamil Nadu', true),
@@ -78,182 +69,104 @@ INSERT INTO district_config (district_name, state_name, is_active) VALUES
 ('Thanjavur', 'Tamil Nadu', true),
 ('Salem', 'Tamil Nadu', true);
 
--- Insert metrics for Chennai
+-- Insert base metrics for all districts
 INSERT INTO district_metrics (district_id, metric_name, metric_value, metric_icon)
 SELECT 
     d.id,
     m.metric_name,
-    m.metric_value,
+    CASE 
+        WHEN d.district_name = 'Chennai' THEN m.chennai_value
+        WHEN d.district_name = 'Madurai' THEN m.madurai_value
+        WHEN d.district_name = 'Coimbatore' THEN m.coimbatore_value
+        WHEN d.district_name = 'Thanjavur' THEN m.thanjavur_value
+        ELSE m.salem_value
+    END as metric_value,
     m.metric_icon
 FROM district_config d
 CROSS JOIN (
     VALUES 
-        ('People Employed', 1250, '👷'),
-        ('Jobs Created', 320, '🛠️'),
-        ('Wages Paid', 50000, '💰')
-) AS m(metric_name, metric_value, metric_icon)
-WHERE d.district_name = 'Chennai';
+        ('People Employed', 15000, 12000, 13500, 11000, 10500, '👥'),
+        ('Jobs Created', 320, 280, 300, 260, 240, '🛠️'),
+        ('Wages Paid', 50000, 45000, 47500, 42500, 40000, '💰'),
+        ('Average Wage Rate', 350.50, 325.75, 335.25, 315.00, 310.25, '💵'),
+        ('Employment Days', 45, 40, 42, 38, 37, '📅'),
+        ('Total Workers', 5000, 4000, 4500, 3500, 3250, '👷'),
+        ('Completed Works', 150, 120, 135, 110, 105, '✅'),
+        ('Ongoing Works', 50, 40, 45, 35, 32, '🏗️')
+) AS m(metric_name, chennai_value, madurai_value, coimbatore_value, thanjavur_value, salem_value, metric_icon);
 
--- Insert metrics for Madurai
-INSERT INTO district_metrics (district_id, metric_name, metric_value, metric_icon)
-SELECT 
-    d.id,
-    m.metric_name,
-    m.metric_value,
-    m.metric_icon
-FROM district_config d
-CROSS JOIN (
-    VALUES 
-        ('People Employed', 980, '👷'),
-        ('Jobs Created', 280, '🛠️'),
-        ('Wages Paid', 45000, '💰')
-) AS m(metric_name, metric_value, metric_icon)
-WHERE d.district_name = 'Madurai';
-
--- Insert metrics for Coimbatore
-INSERT INTO district_metrics (district_id, metric_name, metric_value, metric_icon)
-SELECT 
-    d.id,
-    m.metric_name,
-    m.metric_value,
-    m.metric_icon
-FROM district_config d
-CROSS JOIN (
-    VALUES 
-        ('People Employed', 1100, '👷'),
-        ('Jobs Created', 300, '🛠️'),
-        ('Wages Paid', 48000, '💰')
-) AS m(metric_name, metric_value, metric_icon)
-WHERE d.district_name = 'Coimbatore';
-
--- Insert metrics for Thanjavur
-INSERT INTO district_metrics (district_id, metric_name, metric_value, metric_icon)
-SELECT 
-    d.id,
-    m.metric_name,
-    m.metric_value,
-    m.metric_icon
-FROM district_config d
-CROSS JOIN (
-    VALUES 
-        ('People Employed', 850, '👷'),
-        ('Jobs Created', 220, '🛠️'),
-        ('Wages Paid', 42000, '💰')
-) AS m(metric_name, metric_value, metric_icon)
-WHERE d.district_name = 'Thanjavur';
-
--- Insert metrics for Salem
-INSERT INTO district_metrics (district_id, metric_name, metric_value, metric_icon)
-SELECT 
-    d.id,
-    m.metric_name,
-    m.metric_value,
-    m.metric_icon
-FROM district_config d
-CROSS JOIN (
-    VALUES 
-        ('People Employed', 920, '👷'),
-        ('Jobs Created', 260, '🛠️'),
-        ('Wages Paid', 44000, '💰')
-) AS m(metric_name, metric_value, metric_icon)
-WHERE d.district_name = 'Salem';
-
--- Insert insights for all districts
+-- Insert district insights
 INSERT INTO district_insights (district_id, insight_type, description)
 SELECT 
     d.id,
-    'positive',
-    unnest(ARRAY[
-        'Steady increase in employment opportunities',
-        'Effective wage distribution system',
-        'High women participation rate'
-    ])
-FROM district_config d;
+    i.insight_type,
+    i.description
+FROM district_config d
+CROSS JOIN (
+    VALUES 
+        ('positive', 'Employment rate increased by 15% in past quarter'),
+        ('positive', 'Digital wage transfers improved payment efficiency'),
+        ('positive', 'Women participation in workforce increased'),
+        ('issue', 'Delayed wage payments in remote areas'),
+        ('issue', 'Material shortage affecting work progress'),
+        ('issue', 'Need more skill development programs'),
+        ('analytical', 'High demand for agricultural related jobs'),
+        ('analytical', 'Wage rates align with state average'),
+        ('analytical', 'Rural employment showing upward trend')
+) AS i(insight_type, description);
 
-INSERT INTO district_insights (district_id, insight_type, description)
-SELECT 
-    d.id,
-    'issue',
-    unnest(ARRAY[
-        'Need for better infrastructure',
-        'Seasonal employment variations',
-        'Transport connectivity challenges'
-    ])
-FROM district_config d;
-
-INSERT INTO district_insights (district_id, insight_type, description)
-SELECT 
-    d.id,
-    'analytical',
-    unnest(ARRAY[
-        'Consistent growth in job creation',
-        'Wage rates align with state average',
-        'Good resource utilization'
-    ])
-FROM district_config d;
-
--- Insert monthly statistics for all districts
+-- Insert monthly statistics for each district
 INSERT INTO monthly_district_stats (district_id, month, year, employed, jobs_created, wages_paid)
 SELECT 
     d.id,
-    m.month,
+    TO_CHAR(date_series, 'MM'),
     2025,
-    m.employed,
-    m.jobs,
-    m.wages
+    -- Generating different ranges for each metric based on district size
+    CASE 
+        WHEN d.district_name = 'Chennai' THEN floor(random() * (2000-1000) + 1000)
+        WHEN d.district_name = 'Madurai' THEN floor(random() * (1500-800) + 800)
+        WHEN d.district_name = 'Coimbatore' THEN floor(random() * (1800-900) + 900)
+        WHEN d.district_name = 'Thanjavur' THEN floor(random() * (1200-600) + 600)
+        ELSE floor(random() * (1000-500) + 500)
+    END as employed,
+    CASE 
+        WHEN d.district_name = 'Chennai' THEN floor(random() * (400-200) + 200)
+        WHEN d.district_name = 'Madurai' THEN floor(random() * (300-150) + 150)
+        WHEN d.district_name = 'Coimbatore' THEN floor(random() * (350-175) + 175)
+        WHEN d.district_name = 'Thanjavur' THEN floor(random() * (250-125) + 125)
+        ELSE floor(random() * (200-100) + 100)
+    END as jobs_created,
+    CASE 
+        WHEN d.district_name = 'Chennai' THEN floor(random() * (2000000-1000000) + 1000000)
+        WHEN d.district_name = 'Madurai' THEN floor(random() * (1500000-750000) + 750000)
+        WHEN d.district_name = 'Coimbatore' THEN floor(random() * (1800000-900000) + 900000)
+        WHEN d.district_name = 'Thanjavur' THEN floor(random() * (1200000-600000) + 600000)
+        ELSE floor(random() * (1000000-500000) + 500000)
+    END as wages_paid
+FROM district_config d
+CROSS JOIN generate_series(
+    '2025-01-01'::date,
+    '2025-12-31'::date,
+    '1 month'::interval
+) AS date_series;
+
+-- Insert outcomes specific to each district
+INSERT INTO district_outcomes (district_id, outcome_type, description)
+SELECT 
+    d.id,
+    o.outcome_type,
+    CASE 
+        WHEN d.district_name = 'Chennai' THEN o.chennai_desc
+        WHEN d.district_name = 'Madurai' THEN o.madurai_desc
+        WHEN d.district_name = 'Coimbatore' THEN o.coimbatore_desc
+        WHEN d.district_name = 'Thanjavur' THEN o.thanjavur_desc
+        ELSE o.salem_desc
+    END as description
 FROM district_config d
 CROSS JOIN (
     VALUES 
-        ('Jan', 100, 25, 5000),
-        ('Feb', 120, 30, 5500),
-        ('Mar', 110, 28, 5200),
-        ('Apr', 130, 35, 5800)
-) AS m(month, employed, jobs, wages);
-
--- Insert outcomes for all districts
-INSERT INTO district_outcomes (district_id, outcome_type, description)
-SELECT 
-    d.id,
-    'positive',
-    unnest(ARRAY[
-        'Strong community participation',
-        'Efficient project completion',
-        'Good worker satisfaction levels'
-    ])
-FROM district_config d;
-
-INSERT INTO district_outcomes (district_id, outcome_type, description)
-SELECT 
-    d.id,
-    'issue',
-    unnest(ARRAY[
-        'Weather-related work delays',
-        'Resource allocation challenges',
-        'Skill development needs'
-    ])
-FROM district_config d;
-
--- Create materialized view for dashboard analytics
-CREATE MATERIALIZED VIEW mgnrega_analytics AS
-SELECT 
-    d.district_name,
-    d.state_name,
-    m.metric_name,
-    m.metric_value,
-    ms.month,
-    ms.year,
-    ms.employed,
-    ms.jobs_created,
-    ms.wages_paid
-FROM district_config d
-LEFT JOIN district_metrics m ON d.id = m.district_id
-LEFT JOIN monthly_district_stats ms ON d.id = ms.district_id
-WHERE d.is_active = true
-WITH DATA;
-
--- Create index on materialized view
-CREATE INDEX idx_mgnrega_analytics_district 
-ON mgnrega_analytics(district_name);
-
--- Grant necessary permissions (adjust as needed)
-GRANT SELECT ON ALL TABLES IN SCHEMA public TO postgreskiru_user;
+        ('positive', 'Urban employment initiatives successful', 'Temple renovation projects completed', 'Industrial zone development', 'Agricultural modernization success', 'Textile sector growth'),
+        ('positive', 'Digital payment adoption at 95%', 'Heritage tourism boost', 'SME sector growth', 'Farm-to-market initiatives', 'Infrastructure development'),
+        ('issue', 'Urban-rural wage gap', 'Heritage site work delays', 'Industrial training needs', 'Irrigation project delays', 'Skill gap in textile sector'),
+        ('issue', 'Housing project delays', 'Tourism infrastructure needs', 'Industrial waste management', 'Agricultural storage needs', 'Transport infrastructure')
+) AS o(outcome_type, chennai_desc, madurai_desc, coimbatore_desc, thanjavur_desc, salem_desc);

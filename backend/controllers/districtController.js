@@ -86,6 +86,14 @@ export const getDistrictData = async (req, res) => {
                     WHEN 'Feb' THEN 2 
                     WHEN 'Mar' THEN 3 
                     WHEN 'Apr' THEN 4 
+                    WHEN 'May' THEN 5 
+                    WHEN 'Jun' THEN 6 
+                    WHEN 'Jul' THEN 7 
+                    WHEN 'Aug' THEN 8 
+                    WHEN 'Sep' THEN 9 
+                    WHEN 'Oct' THEN 10 
+                    WHEN 'Nov' THEN 11 
+                    WHEN 'Dec' THEN 12
                 END`,
             [districtId]
         );
@@ -165,34 +173,71 @@ export const getAggregatedInsights = async (req, res) => {
     }
 };
 
-// Compare districts
+// Compare districts - FIXED VERSION
 export const compareDistricts = async (req, res) => {
     try {
         const { districts } = req.query;
-        const districtList = districts.split(',');
+        
+        if (!districts) {
+            return res.status(400).json({ error: 'Districts parameter is required' });
+        }
+        
+        const districtList = districts.split(',').map(d => d.trim());
+        
+        console.log('Comparing districts:', districtList);
         
         const comparisons = await pool.query(
             `SELECT 
                 d.district_name,
                 m.metric_name,
-                m.metric_value
+                m.metric_value,
+                m.metric_icon
              FROM district_config d
              JOIN district_metrics m ON m.district_id = d.id
-             WHERE d.district_name = ANY($1)`,
+             WHERE d.district_name = ANY($1)
+             ORDER BY d.district_name, m.metric_name`,
             [districtList]
         );
+        
+        console.log('Query returned rows:', comparisons.rows.length);
+        
+        if (comparisons.rows.length === 0) {
+            return res.status(404).json({ 
+                error: 'No data found for the specified districts',
+                requestedDistricts: districtList 
+            });
+        }
         
         // Transform data for comparison charts
         const transformedData = comparisons.rows.reduce((acc, curr) => {
             if (!acc[curr.metric_name]) {
-                acc[curr.metric_name] = {};
+                acc[curr.metric_name] = {
+                    icon: curr.metric_icon
+                };
             }
-            acc[curr.metric_name][curr.district_name] = curr.metric_value;
+            acc[curr.metric_name][curr.district_name] = parseFloat(curr.metric_value);
             return acc;
         }, {});
         
-        res.json(transformedData);
+        // Create chart data array in the format frontend expects
+        const chartData = Object.entries(transformedData).map(([metric, data]) => {
+            const { icon, ...districtValues } = data;
+            return {
+                metricName: metric,
+                icon: icon,
+                ...districtValues
+            };
+        });
+        
+        console.log('Sending response with', chartData.length, 'metrics');
+        
+        // Return in the format frontend expects
+        res.json({ 
+            metrics: transformedData, 
+            chartData: chartData 
+        });
     } catch (error) {
+        console.error('Error comparing districts:', error);
         res.status(500).json({ error: error.message });
     }
 };
@@ -214,6 +259,14 @@ export const getDistrictStats = async (req, res) => {
                     WHEN 'Feb' THEN 2 
                     WHEN 'Mar' THEN 3 
                     WHEN 'Apr' THEN 4 
+                    WHEN 'May' THEN 5 
+                    WHEN 'Jun' THEN 6 
+                    WHEN 'Jul' THEN 7 
+                    WHEN 'Aug' THEN 8 
+                    WHEN 'Sep' THEN 9 
+                    WHEN 'Oct' THEN 10 
+                    WHEN 'Nov' THEN 11 
+                    WHEN 'Dec' THEN 12
                 END`,
             [district]
         );
@@ -230,6 +283,14 @@ export const getDistrictStats = async (req, res) => {
                     WHEN 'Feb' THEN 2 
                     WHEN 'Mar' THEN 3 
                     WHEN 'Apr' THEN 4 
+                    WHEN 'May' THEN 5 
+                    WHEN 'Jun' THEN 6 
+                    WHEN 'Jul' THEN 7 
+                    WHEN 'Aug' THEN 8 
+                    WHEN 'Sep' THEN 9 
+                    WHEN 'Oct' THEN 10 
+                    WHEN 'Nov' THEN 11 
+                    WHEN 'Dec' THEN 12
                 END
              LIMIT 12`,
             [district]

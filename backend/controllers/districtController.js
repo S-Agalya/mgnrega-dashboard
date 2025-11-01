@@ -183,9 +183,7 @@ export const compareDistricts = async (req, res) => {
         }
         
         const districtList = districts.split(',').map(d => d.trim());
-        
-        console.log('Comparing districts:', districtList);
-        
+                
         const comparisons = await pool.query(
             `SELECT 
                 d.district_name,
@@ -198,9 +196,7 @@ export const compareDistricts = async (req, res) => {
              ORDER BY d.district_name, m.metric_name`,
             [districtList]
         );
-        
-        console.log('Query returned rows:', comparisons.rows.length);
-        
+                
         if (comparisons.rows.length === 0) {
             return res.status(404).json({ 
                 error: 'No data found for the specified districts',
@@ -228,9 +224,7 @@ export const compareDistricts = async (req, res) => {
                 ...districtValues
             };
         });
-        
-        console.log('Sending response with', chartData.length, 'metrics');
-        
+                
         // Return in the format frontend expects
         res.json({ 
             metrics: transformedData, 

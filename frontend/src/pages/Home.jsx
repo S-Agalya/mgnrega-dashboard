@@ -1,27 +1,90 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import {
+  LineChart, Line, BarChart, Bar, PieChart, Pie, RadialBarChart, RadialBar,
+  XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell
+} from "recharts";
 import Footer from "../components/Footer";
 
+// Colors for charts
+const COLORS = ["#4F46E5", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6"];
+
+// Calculate development index from metrics
+const calculateDevelopmentIndex = (metrics) => {
+  if (!metrics?.length) return 0;
+  const totalEmployed = metrics.find(m => m.metric_name === 'People Employed')?.metric_value || 0;
+  const totalJobs = metrics.find(m => m.metric_name === 'Jobs Created')?.metric_value || 0;
+  const totalWages = metrics.find(m => m.metric_name === 'Wages Paid')?.metric_value || 0;
+  
+  return ((totalEmployed * 0.4 + totalJobs * 0.3 + totalWages * 0.3) / 1000).toFixed(2);
+};
+
 export default function Home() {
-  const [district, setDistrict] = useState("");
+  const [districts, setDistricts] = useState([]);
+  const [aggregatedMetrics, setAggregatedMetrics] = useState([]);
+  const [insights, setInsights] = useState({
+    positive: [],
+    issues: [],
+    analytical: []
+  });
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
-  const districts = ["Chennai", "Madurai", "Coimbatore", "Thanjavur", "Salem"];
-  const metrics = [
-    { title: "People Employed", value: 1250, icon: "👷" },
-    { title: "Jobs Created", value: 320, icon: "🛠️" },
-    { title: "Wages Paid (₹)", value: 50000, icon: "💰" },
-  ];
-
   useEffect(() => {
-    if (district) {
-      navigate(`/district/${encodeURIComponent(district)}`);
+    const fetchAllData = async () => {
+      setLoading(true);
+      try {
+        // Fetch all districts
+        const districtsRes = await fetch(
+          `${import.meta.env.VITE_API_BASE_URL}/api/mgnrega/districts`
+        );
+        const districtsData = await districtsRes.json();
+        setDistricts(districtsData);
+
+        // Fetch aggregated metrics
+        const metricsRes = await fetch(
+          `${import.meta.env.VITE_API_BASE_URL}/api/mgnrega/metrics/aggregated`
+        );
+        const metricsData = await metricsRes.json();
+        setAggregatedMetrics(metricsData);
+
+        // Fetch aggregated insights
+        const insightsRes = await fetch(
+          `${import.meta.env.VITE_API_BASE_URL}/api/mgnrega/insights/aggregated`
+        );
+        const insightsData = await insightsRes.json();
+        setInsights(insightsData);
+
+      } catch (err) {
+        console.error("Error fetching data:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAllData();
+  }, []);
+
+  const handleDistrictSelect = (districtName) => {
+    if (districtName) {
+      navigate(`/district/${districtName}`);
     }
-  }, [district, navigate]);
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+          <p className="text-lg text-gray-600">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-100">
-      {/* 🔹 Fixed Gradient Header with Navigation */}
+      {/* Fixed Header */}
       <header className="fixed top-0 left-0 w-full bg-gradient-to-r from-indigo-800 via-blue-700 to-indigo-900 text-white py-5 px-8 shadow-lg z-50 flex justify-between items-center">
         <h1 className="text-2xl font-bold tracking-wide">
           MGNREGA District Dashboard
@@ -43,96 +106,168 @@ export default function Home() {
 
           <select
             className="p-2 rounded-lg text-black font-semibold shadow-md w-56"
-            value={district}
-            onChange={(e) => setDistrict(e.target.value)}
+            onChange={(e) => handleDistrictSelect(e.target.value)}
+            defaultValue=""
           >
-            <option value="">Select your district</option>
+            <option value="">Quick Navigate →</option>
             {districts.map((d) => (
-              <option key={d} value={d}>
-                {d}
+              <option key={d.district_name} value={d.district_name}>
+                {d.district_name}
               </option>
             ))}
           </select>
         </div>
       </header>
 
-      {/* 🔹 Main Split Layout */}
+      {/* Main Content */}
       <main className="flex flex-1 mt-24">
-        {/* Left: Graphs and Metrics */}
+        {/* Left: Main Content */}
         <div className="flex-1 bg-gray-100 p-6 overflow-y-auto">
-          {/* Metrics */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
-            {metrics.map((metric) => (
-              <div
-                key={metric.title}
-                className="bg-white p-6 rounded-2xl shadow-lg hover:shadow-2xl transform hover:-translate-y-1 transition-all duration-300"
-              >
-                <div className="text-4xl">{metric.icon}</div>
-                <h3 className="text-gray-700 font-semibold mt-2">
-                  {metric.title}
-                </h3>
-                <p className="text-3xl font-bold text-indigo-700">
-                  {metric.value.toLocaleString()}
-                </p>
-              </div>
-            ))}
+          {/* District Cards Section */}
+          <div className="mb-8">
+            <h2 className="text-2xl font-bold text-gray-800 mb-4">
+              📍 Select a District to View Details
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+              {districts.map((district) => (
+                <div
+                  key={district.district_name}
+                  onClick={() => handleDistrictSelect(district.district_name)}
+                  className="bg-white p-6 rounded-2xl shadow-lg hover:shadow-2xl transform hover:-translate-y-2 transition-all duration-300 cursor-pointer border-2 border-transparent hover:border-indigo-500"
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-lg font-bold text-gray-800">
+                      {district.district_name}
+                    </h3>
+                    <span className="text-2xl">📍</span>
+                  </div>
+                  <p className="text-sm text-gray-600 mb-2">
+                    {district.state_name}
+                  </p>
+                  <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-200">
+                    <span className="text-xs text-gray-500">View Details</span>
+                    <span className="text-indigo-600 font-bold">→</span>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
 
-          {/* Diagrammatic Graphs */}
+          {/* Aggregated Metrics */}
+          <div className="mb-8">
+            <h2 className="text-2xl font-bold text-gray-800 mb-4">
+              📊 Overall Statistics Across All Districts
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+              {aggregatedMetrics.map((metric) => (
+                <div
+                  key={metric.metric_name}
+                  className="bg-white p-6 rounded-2xl shadow-lg hover:shadow-2xl transform hover:-translate-y-1 transition-all duration-300"
+                >
+                  <div className="text-4xl mb-2">{metric.metric_icon}</div>
+                  <h3 className="text-gray-700 font-semibold text-sm mb-1">
+                    {metric.metric_name}
+                  </h3>
+                  <p className="text-3xl font-bold text-indigo-700">
+                    {parseFloat(metric.metric_value).toLocaleString()}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Charts */}
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-            {/* Graph 1 */}
+            {/* Overall Metrics Bar Chart */}
             <div className="bg-white p-6 rounded-2xl shadow-lg">
               <h3 className="font-bold text-gray-800 mb-4">
-                📈 Employment Growth Rate
+                📊 Metrics Overview
               </h3>
-              <div className="h-48 flex items-center justify-center text-gray-500">
-                [Line Graph Placeholder]
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={aggregatedMetrics}>
+                    <XAxis 
+                      dataKey="metric_name" 
+                      angle={-15} 
+                      textAnchor="end" 
+                      height={80}
+                      fontSize={10}
+                    />
+                    <YAxis />
+                    <Tooltip />
+                    <Bar dataKey="metric_value" fill="#4F46E5" radius={[8, 8, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
               </div>
             </div>
 
-            {/* Graph 2 */}
+            {/* Districts Distribution Pie */}
             <div className="bg-white p-6 rounded-2xl shadow-lg">
-              <h3 className="font-bold text-gray-800 mb-4">📊 Jobs vs Wages</h3>
-              <div className="h-48 flex items-center justify-center text-gray-500">
-                [Bar Chart Placeholder]
+              <h3 className="font-bold text-gray-800 mb-4">
+                🥧 Districts Coverage
+              </h3>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={districts.map(d => ({
+                        name: d.district_name,
+                        value: 1
+                      }))}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={80}
+                    >
+                      {districts.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
               </div>
             </div>
 
-            {/* Pie Chart */}
+            {/* Development Index */}
             <div className="bg-white p-6 rounded-2xl shadow-lg">
               <h3 className="font-bold text-gray-800 mb-4">
-                🥧 Job Distribution by Category
+                🌾 Overall Development Index
               </h3>
-              <div className="h-48 flex items-center justify-center text-gray-500">
-                [Pie Chart Placeholder]
-              </div>
-            </div>
-
-            {/* Additional Graphs */}
-            <div className="bg-white p-6 rounded-2xl shadow-lg">
-              <h3 className="font-bold text-gray-800 mb-4">
-                📍 Work Completion Timeline
-              </h3>
-              <div className="h-48 flex items-center justify-center text-gray-500">
-                [Timeline Graph Placeholder]
-              </div>
-            </div>
-
-            <div className="bg-white p-6 rounded-2xl shadow-lg">
-              <h3 className="font-bold text-gray-800 mb-4">
-                🌾 Rural Development Index
-              </h3>
-              <div className="h-48 flex items-center justify-center text-gray-500">
-                [Gauge or Circle Chart Placeholder]
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <RadialBarChart 
+                    innerRadius="60%" 
+                    outerRadius="100%" 
+                    data={[{
+                      name: 'Development Index',
+                      value: parseFloat(calculateDevelopmentIndex(aggregatedMetrics)),
+                      fill: '#4F46E5'
+                    }]} 
+                    startAngle={180} 
+                    endAngle={0}
+                  >
+                    <RadialBar
+                      minAngle={15}
+                      background
+                      clockWise={true}
+                      dataKey="value"
+                    />
+                    <Legend />
+                    <Tooltip />
+                  </RadialBarChart>
+                </ResponsiveContainer>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Right: Notes Panel */}
+        {/* Right: Insights Panel */}
         <aside className="w-96 bg-gray-900 text-gray-100 p-6 shadow-2xl sticky top-0 h-screen overflow-y-auto">
           <h2 className="text-2xl font-bold text-yellow-400 mb-4">
-            📋 District Insights
+            📋 Overall Insights
           </h2>
 
           {/* Positive */}
@@ -140,34 +275,46 @@ export default function Home() {
             <h3 className="text-lg font-semibold text-green-400 mb-2">
               ✅ Positive Observations
             </h3>
-            <ul className="list-disc list-inside text-gray-300 space-y-1">
-              <li>Rural employment rose by 15% in 2025.</li>
-              <li>Digital wage transfers improved efficiency.</li>
-              <li>Steady increase in women's participation.</li>
+            <ul className="list-disc list-inside text-gray-300 space-y-1 text-sm">
+              {insights.positive.length > 0 ? (
+                insights.positive.map((item, index) => (
+                  <li key={index}>{item}</li>
+                ))
+              ) : (
+                <li className="text-gray-500">No positive insights available</li>
+              )}
             </ul>
           </div>
 
-          {/* Negative */}
+          {/* Issues */}
           <div className="mb-6">
             <h3 className="text-lg font-semibold text-red-400 mb-2">
               ⚠️ Issues Identified
             </h3>
-            <ul className="list-disc list-inside text-gray-300 space-y-1">
-              <li>Delayed payments in remote panchayats.</li>
-              <li>Material shortage affecting speed.</li>
-              <li>Awareness gap in low-literacy zones.</li>
+            <ul className="list-disc list-inside text-gray-300 space-y-1 text-sm">
+              {insights.issues.length > 0 ? (
+                insights.issues.map((item, index) => (
+                  <li key={index}>{item}</li>
+                ))
+              ) : (
+                <li className="text-gray-500">No issues identified</li>
+              )}
             </ul>
           </div>
 
-          {/* Observations */}
+          {/* Analytical */}
           <div className="mb-6">
             <h3 className="text-lg font-semibold text-blue-400 mb-2">
               🔍 Analytical Insights
             </h3>
-            <ul className="list-disc list-inside text-gray-300 space-y-1">
-              <li>High job demand linked with rural migration.</li>
-              <li>Wage rate trends align with national average.</li>
-              <li>Transparency improved in fund flow tracking.</li>
+            <ul className="list-disc list-inside text-gray-300 space-y-1 text-sm">
+              {insights.analytical.length > 0 ? (
+                insights.analytical.map((item, index) => (
+                  <li key={index}>{item}</li>
+                ))
+              ) : (
+                <li className="text-gray-500">No analytical insights available</li>
+              )}
             </ul>
           </div>
 
@@ -176,6 +323,8 @@ export default function Home() {
             <a
               href="https://nrega.nic.in"
               className="underline text-blue-300 hover:text-blue-400"
+              target="_blank"
+              rel="noreferrer"
             >
               MGNREGA Portal
             </a>

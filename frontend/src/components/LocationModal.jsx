@@ -5,31 +5,35 @@ import { useGeolocation } from '../hooks/useGeolocation';
 const LocationModal = ({ isOpen, onClose, onSelectDistrict, districts }) => {
   const { t } = useTranslation();
   const { getLocation, loading, error } = useGeolocation();
-  const [userDistrict, setUserDistrict] = useState(null);
+  const [userLocation, setUserLocation] = useState(null);
   const [districtNotFound, setDistrictNotFound] = useState(false);
 
   const handleGetLocation = async () => {
-    setUserDistrict(null);
+    setUserLocation(null);
     setDistrictNotFound(false);
 
-    const locationData = await getLocation();
+    // Pass districts to geolocation hook for matching
+    const locationData = await getLocation(districts);
     
     if (!locationData) return;
 
-    // Find matching district in database
-    const matchedDistrict = districts.find(
-      (d) =>
-        d.district_name.toLowerCase() === locationData.districtName.toLowerCase() ||
-        d.district_name.toLowerCase().includes(locationData.districtName.toLowerCase().split(' ')[0])
-    );
+    setUserLocation(locationData);
 
-    if (matchedDistrict) {
-      setUserDistrict(matchedDistrict);
-      onSelectDistrict(matchedDistrict.district_name);
+    // If matched district exists
+    if (locationData.matchedDistrict) {
+      // Auto-select after 2 seconds so user can see the match
+      setTimeout(() => {
+        onSelectDistrict(locationData.matchedDistrict);
+      }, 2000);
     } else {
+      // No match found
       setDistrictNotFound(true);
-      setUserDistrict(locationData);
     }
+  };
+
+  const handleManualSelect = (districtName) => {
+    onClose();
+    onSelectDistrict(districtName);
   };
 
   if (!isOpen) return null;
@@ -45,49 +49,61 @@ const LocationModal = ({ isOpen, onClose, onSelectDistrict, districts }) => {
           </h2>
           <button
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-700 text-2xl"
+            className="text-gray-500 hover:text-gray-700 text-2xl font-bold"
           >
             ✕
           </button>
         </div>
 
         {/* Error Message */}
-        {error && (
+        {error && !userLocation && (
           <div className="bg-red-50 border-2 border-red-200 text-red-700 p-4 rounded-xl mb-6">
             <p className="font-semibold text-sm">{error}</p>
           </div>
         )}
 
-        {/* District Not Found */}
-        {districtNotFound && userDistrict && (
-          <div className="bg-yellow-50 border-2 border-yellow-200 text-yellow-800 p-4 rounded-xl mb-6">
-            <p className="font-semibold mb-2">⚠️ No Data Available</p>
-            <p className="text-sm">
-              There is no data available for your district: <strong>{userDistrict.districtName}</strong>
+        {/* Location Detected */}
+        {userLocation && (
+          <div className={`border-2 rounded-xl p-4 mb-6 ${
+            districtNotFound 
+              ? 'bg-yellow-50 border-yellow-200' 
+              : 'bg-green-50 border-green-200'
+          }`}>
+            <p className={`font-semibold mb-3 ${
+              districtNotFound ? 'text-yellow-800' : 'text-green-800'
+            }`}>
+              {districtNotFound ? '⚠️ Location Detected' : '✅ District Found!'}
             </p>
-            <p className="text-xs text-yellow-700 mt-2 opacity-75">
-              We only have data for: Tamil Nadu districts
-            </p>
-          </div>
-        )}
-
-        {/* District Found */}
-        {userDistrict && !districtNotFound && (
-          <div className="bg-green-50 border-2 border-green-200 rounded-xl p-4 mb-6">
-            <p className="font-semibold text-green-800 mb-3">✅ District Found!</p>
+            
             <div className="space-y-2">
               <div>
-                <p className="text-xs text-gray-600">District</p>
-                <p className="font-bold text-lg text-green-700">
-                  {userDistrict.district_name}
+                <p className="text-xs text-gray-600">Your Address</p>
+                <p className="font-bold text-gray-800 text-sm">
+                  {userLocation.completeAddress}
                 </p>
               </div>
-              <div>
-                <p className="text-xs text-gray-600">State</p>
-                <p className="font-bold text-green-700">
-                  {userDistrict.state_name}
-                </p>
-              </div>
+
+              {userLocation.matchedDistrict ? (
+                <div className="mt-3 pt-3 border-t border-green-200">
+                  <p className="text-xs text-gray-600">Matched District</p>
+                  <p className={`font-bold text-lg ${
+                    districtNotFound ? 'text-yellow-700' : 'text-green-700'
+                  }`}>
+                    {userLocation.matchedDistrict}
+                  </p>
+                </div>
+              ) : (
+                <div className="mt-3 pt-3 border-t border-yellow-200">
+                  <p className={`text-sm font-semibold ${
+                    districtNotFound ? 'text-yellow-700' : 'text-gray-700'
+                  }`}>
+                    This district is not in our database.
+                  </p>
+                  <p className="text-xs text-gray-600 mt-2">
+                    We have data for: <strong>{districts.map(d => d.district_name).join(', ')}</strong>
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -95,10 +111,29 @@ const LocationModal = ({ isOpen, onClose, onSelectDistrict, districts }) => {
         {/* Info Text */}
         <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 mb-6">
           <p className="text-xs text-blue-700">
-            <strong>ℹ️ Note:</strong> This will use your device's location to determine your district.
-            Make sure location permission is enabled in your browser.
+            <strong>ℹ️ Note:</strong> This uses your device's GPS location. Make sure location permission is enabled in your browser settings.
           </p>
         </div>
+
+        {/* Manual Selection */}
+        {districtNotFound && (
+          <div className="mb-6">
+            <p className="text-sm font-semibold text-gray-700 mb-3">
+              Select a district manually:
+            </p>
+            <div className="space-y-2 max-h-48 overflow-y-auto">
+              {districts.map((district) => (
+                <button
+                  key={district.district_name}
+                  onClick={() => handleManualSelect(district.district_name)}
+                  className="w-full text-left px-4 py-2 rounded-lg bg-gray-100 hover:bg-indigo-100 text-gray-800 hover:text-indigo-800 transition font-medium text-sm"
+                >
+                  {district.district_name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Buttons */}
         <div className="flex gap-3">
@@ -117,6 +152,11 @@ const LocationModal = ({ isOpen, onClose, onSelectDistrict, districts }) => {
               <>
                 <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
                 Detecting...
+              </>
+            ) : userLocation ? (
+              <>
+                <span>🔄</span>
+                Try Again
               </>
             ) : (
               <>

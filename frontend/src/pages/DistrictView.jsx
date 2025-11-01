@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   BarChart,
   Bar,
@@ -20,20 +21,24 @@ import {
 } from "recharts";
 import { useParams, useNavigate } from "react-router-dom";
 import Footer from "../components/Footer";
+import LanguageSwitcher from "../components/LanguageSwitcher";
+
 
 // Simple inline components
-const Header = () => (
+const Header = ({ t }) => (
   <header className="bg-gradient-to-r from-indigo-800 via-blue-700 to-indigo-900 text-white py-5 px-8 shadow-lg flex justify-between items-center">
-    <h1 className="text-2xl font-bold">MGNREGA Dashboard</h1>
+    <h1 className="text-2xl font-bold">{t('district.title')}</h1>
+    <LanguageSwitcher />
   </header>
 );
 
-const DistrictCard = ({ title, value, icon }) => (
+
+const DistrictCard = ({ title, value, icon, t }) => (
   <div className="bg-gradient-to-br from-white to-blue-50 p-6 rounded-2xl shadow-lg hover:shadow-2xl transform hover:-translate-y-1 transition-all duration-300 border border-blue-100">
     <div className="flex items-center justify-between mb-3">
       <div className="text-5xl">{icon}</div>
       <div className="bg-blue-100 text-blue-600 px-3 py-1 rounded-full text-xs font-semibold">
-        Active
+        {t('district.active')}
       </div>
     </div>
     <h3 className="text-gray-600 font-semibold text-sm uppercase tracking-wide mb-1">
@@ -43,10 +48,11 @@ const DistrictCard = ({ title, value, icon }) => (
       {parseFloat(value).toLocaleString()}
     </p>
     <div className="mt-3 pt-3 border-t border-gray-200">
-      <span className="text-xs text-green-600 font-semibold">↗ Trending Up</span>
+      <span className="text-xs text-green-600 font-semibold">{t('district.trendingUp')}</span>
     </div>
   </div>
 );
+
 
 const StatCard = ({ title, value, icon, color, trend }) => (
   <div className={`bg-gradient-to-br ${color} p-6 rounded-2xl shadow-lg text-white transform hover:scale-105 transition-all duration-300`}>
@@ -63,7 +69,9 @@ const StatCard = ({ title, value, icon, color, trend }) => (
   </div>
 );
 
+
 export default function DistrictView() {
+  const { t } = useTranslation();
   const { name } = useParams();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -79,16 +87,19 @@ export default function DistrictView() {
     analytical: []
   });
 
+
   useEffect(() => {
     const fetchDistrictData = async () => {
       if (!name) {
-        setError("No district name provided");
+        setError(t('district.noData'));
         setLoading(false);
         return;
       }
 
+
       setLoading(true);
       setError(null);
+
 
       try {
         // Fetch main district data
@@ -96,10 +107,11 @@ export default function DistrictView() {
           `${import.meta.env.VITE_API_BASE_URL}/api/mgnrega/district/${name}`
         );
         if (!dataResponse.ok) {
-          throw new Error(`Failed to fetch district data: ${dataResponse.status}`);
+          throw new Error(`${t('district.noData')}: ${dataResponse.status}`);
         }
         const data = await dataResponse.json();
         setDistrictData(data);
+
 
         // Fetch district stats
         try {
@@ -114,6 +126,7 @@ export default function DistrictView() {
           console.warn("Stats fetch failed:", err);
         }
 
+
         // Fetch insights
         try {
           const insightsResponse = await fetch(
@@ -127,6 +140,7 @@ export default function DistrictView() {
           console.warn("Insights fetch failed:", err);
         }
 
+
       } catch (err) {
         setError(err.message);
         console.error('Error fetching district data:', err);
@@ -135,41 +149,46 @@ export default function DistrictView() {
       }
     };
 
+
     fetchDistrictData();
-  }, [name]);
+  }, [name, t]);
+
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
         <div className="text-center">
           <div className="animate-spin rounded-full h-20 w-20 border-b-4 border-indigo-600 mx-auto mb-4"></div>
-          <div className="text-xl font-semibold text-gray-700">Loading {name} data...</div>
+          <div className="text-xl font-semibold text-gray-700">{t('common.loading')} {name} {t('district.noData')}...</div>
           <div className="text-sm text-gray-500 mt-2">Please wait while we fetch the latest information</div>
         </div>
       </div>
     );
   }
 
+
   if (error || !districtData) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
         <div className="text-center p-8 bg-white rounded-2xl shadow-2xl max-w-lg">
           <div className="text-6xl mb-4">⚠️</div>
-          <p className="text-red-600 text-xl font-semibold mb-2">{error || "No data available"}</p>
-          <p className="text-gray-600 mb-6">District: {name}</p>
+          <p className="text-red-600 text-xl font-semibold mb-2">{error || t('district.noData')}</p>
+          <p className="text-gray-600 mb-6">{t('district.district')} {name}</p>
           <button
             onClick={() => navigate('/')}
             className="bg-gradient-to-r from-indigo-600 to-blue-600 text-white px-8 py-3 rounded-lg hover:from-indigo-700 hover:to-blue-700 transition shadow-lg"
           >
-            ← Back to Dashboard
+            ← {t('district.backDashboard')}
           </button>
         </div>
       </div>
     );
   }
 
+
   const COLORS = ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6"];
   const HEADER_HEIGHT = 64;
+
 
   // Calculate some derived stats
   const totalEmployed = districtData.metrics?.find(m => m.metric_name === 'People Employed')?.metric_value || 0;
@@ -179,12 +198,14 @@ export default function DistrictView() {
   const completedWorks = districtData.metrics?.find(m => m.metric_name === 'Completed Works')?.metric_value || 0;
   const ongoingWorks = districtData.metrics?.find(m => m.metric_name === 'Ongoing Works')?.metric_value || 0;
 
+
   return (
     <div className="bg-gradient-to-br from-gray-50 to-blue-50 min-h-screen flex flex-col">
       {/* Fixed Header */}
       <div className="fixed top-0 left-0 w-full z-50 shadow-md">
-        <Header />
+        <Header t={t} />
       </div>
+
 
       {/* Main Layout */}
       <div className="flex flex-1 gap-6 p-6 mt-[64px]">
@@ -202,7 +223,7 @@ export default function DistrictView() {
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
               </svg>
-              Back to Dashboard
+              {t('district.backDashboard')}
             </button>
             
             <div className="flex gap-3">
@@ -210,16 +231,17 @@ export default function DistrictView() {
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
                 </svg>
-                Share
+                {t('district.share')}
               </button>
               <button className="bg-white px-5 py-3 rounded-xl shadow-md hover:shadow-lg transition flex items-center gap-2 text-gray-700 hover:text-green-600">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                 </svg>
-                Export
+                {t('district.export')}
               </button>
             </div>
           </div>
+
 
           {/* District Header */}
           <div className="bg-gradient-to-r from-indigo-600 to-blue-600 text-white p-8 rounded-2xl shadow-xl">
@@ -238,43 +260,45 @@ export default function DistrictView() {
               <div className="text-right">
                 <div className="text-5xl mb-2">📍</div>
                 <div className="text-sm bg-white/20 px-4 py-2 rounded-full">
-                  Active District
+                  {t('district.active')}
                 </div>
               </div>
             </div>
           </div>
 
+
           {/* Quick Stats Row */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard 
-              title="Total Employed" 
+              title={t('district.totalEmployed')} 
               value={totalEmployed.toLocaleString()} 
               icon="👥" 
               color="from-blue-500 to-blue-600"
               trend="+12%"
             />
             <StatCard 
-              title="Jobs Created" 
+              title={t('district.jobsCreated')} 
               value={totalJobs.toLocaleString()} 
               icon="💼" 
               color="from-green-500 to-green-600"
               trend="+8%"
             />
             <StatCard 
-              title="Wages Paid" 
+              title={t('district.wagesPaid')} 
               value={`₹${(totalWages/1000).toFixed(0)}K`} 
               icon="💰" 
               color="from-yellow-500 to-orange-500"
               trend="+15%"
             />
             <StatCard 
-              title="Avg Wage Rate" 
+              title={t('district.avgWageRate')} 
               value={`₹${avgWage}`} 
               icon="💵" 
               color="from-purple-500 to-purple-600"
               trend="+5%"
             />
           </div>
+
 
           {/* Main Metrics Cards */}
           {districtData.metrics && districtData.metrics.length > 0 && (
@@ -285,10 +309,12 @@ export default function DistrictView() {
                   title={metric.metric_name}
                   value={metric.metric_value}
                   icon={metric.metric_icon}
+                  t={t}
                 />
               ))}
             </div>
           )}
+
 
           {/* Charts Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -296,7 +322,7 @@ export default function DistrictView() {
             <div className="bg-white p-6 rounded-2xl shadow-lg hover:shadow-xl transition">
               <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
                 <span className="text-2xl">📊</span>
-                Overall Performance
+                {t('district.overallPerformance')}
               </h2>
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={districtData.metrics}>
@@ -325,18 +351,19 @@ export default function DistrictView() {
               </ResponsiveContainer>
             </div>
 
+
             {/* Pie Chart - Work Status */}
             <div className="bg-white p-6 rounded-2xl shadow-lg hover:shadow-xl transition">
               <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
                 <span className="text-2xl">🥧</span>
-                Work Distribution
+                {t('district.workDistribution')}
               </h2>
               <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
                   <Pie
                     data={[
-                      { name: "Completed Works", value: completedWorks },
-                      { name: "Ongoing Works", value: ongoingWorks }
+                      { name: t('district.completedWorks'), value: completedWorks },
+                      { name: t('district.ongoingWorks'), value: ongoingWorks }
                     ]}
                     cx="50%"
                     cy="50%"
@@ -355,12 +382,13 @@ export default function DistrictView() {
               </ResponsiveContainer>
             </div>
 
+
             {/* Line Chart - Employment Trend */}
             {monthlyStats.employmentGrowth && monthlyStats.employmentGrowth.length > 0 && (
               <div className="bg-white p-6 rounded-2xl shadow-lg hover:shadow-xl transition">
                 <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
                   <span className="text-2xl">📈</span>
-                  Employment Trend
+                  {t('district.employmentTrend')}
                 </h2>
                 <ResponsiveContainer width="100%" height={300}>
                   <AreaChart data={monthlyStats.employmentGrowth}>
@@ -386,12 +414,13 @@ export default function DistrictView() {
               </div>
             )}
 
+
             {/* Line Chart - Jobs & Wages */}
             {monthlyStats.jobsWages && monthlyStats.jobsWages.length > 0 && (
               <div className="bg-white p-6 rounded-2xl shadow-lg hover:shadow-xl transition">
                 <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
                   <span className="text-2xl">💵</span>
-                  Jobs vs Wages
+                  {t('district.jobsVsWages')}
                 </h2>
                 <ResponsiveContainer width="100%" height={300}>
                   <LineChart data={monthlyStats.jobsWages}>
@@ -407,7 +436,7 @@ export default function DistrictView() {
                       dataKey="jobs_created" 
                       stroke="#3B82F6" 
                       strokeWidth={3}
-                      name="Jobs Created"
+                      name={t('district.jobsCreated')}
                     />
                     <Line 
                       yAxisId="right"
@@ -415,7 +444,7 @@ export default function DistrictView() {
                       dataKey="wages_paid" 
                       stroke="#10B981" 
                       strokeWidth={3}
-                      name="Wages Paid"
+                      name={t('district.wagesPaid')}
                     />
                   </LineChart>
                 </ResponsiveContainer>
@@ -423,16 +452,17 @@ export default function DistrictView() {
             )}
           </div>
 
+
           {/* Work Completion Progress */}
           <div className="bg-white p-6 rounded-2xl shadow-lg">
             <h2 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
               <span className="text-2xl">🎯</span>
-              Work Completion Status
+              {t('district.workCompletionStatus')}
             </h2>
             <div className="space-y-4">
               <div>
                 <div className="flex justify-between mb-2">
-                  <span className="text-sm font-semibold text-gray-700">Completed Works</span>
+                  <span className="text-sm font-semibold text-gray-700">{t('district.completedWorks')}</span>
                   <span className="text-sm font-bold text-green-600">{completedWorks}</span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-3">
@@ -444,7 +474,7 @@ export default function DistrictView() {
               </div>
               <div>
                 <div className="flex justify-between mb-2">
-                  <span className="text-sm font-semibold text-gray-700">Ongoing Works</span>
+                  <span className="text-sm font-semibold text-gray-700">{t('district.ongoingWorks')}</span>
                   <span className="text-sm font-bold text-blue-600">{ongoingWorks}</span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-3">
@@ -458,6 +488,7 @@ export default function DistrictView() {
           </div>
         </div>
 
+
         {/* Right Panel - Insights (Sticky) */}
         <aside
           className="w-96 bg-gradient-to-br from-slate-900 to-slate-800 text-gray-100 p-6 rounded-2xl shadow-2xl flex flex-col gap-5 sticky top-[84px] overflow-y-auto"
@@ -466,15 +497,16 @@ export default function DistrictView() {
           <div className="flex items-center gap-3 mb-2">
             <span className="text-3xl">📋</span>
             <h2 className="text-2xl font-bold text-yellow-400">
-              District Insights
+              {t('district.districtInsights')}
             </h2>
           </div>
+
 
           {/* Positive Outcomes */}
           <div className="bg-gradient-to-br from-green-800/40 to-green-900/40 p-5 rounded-xl border border-green-700/30 hover:border-green-600/50 transition">
             <h3 className="font-bold text-green-300 mb-3 flex items-center gap-2 text-lg">
               <span className="text-xl">✅</span>
-              Positive Outcomes
+              {t('district.positiveOutcomes')}
             </h3>
             <ul className="space-y-2 text-sm text-gray-200">
               {insights.positive && insights.positive.length > 0 ? (
@@ -485,16 +517,17 @@ export default function DistrictView() {
                   </li>
                 ))
               ) : (
-                <li className="text-gray-400 italic">No positive outcomes recorded</li>
+                <li className="text-gray-400 italic">{t('district.noOutcomes')}</li>
               )}
             </ul>
           </div>
+
 
           {/* Key Issues */}
           <div className="bg-gradient-to-br from-red-800/40 to-red-900/40 p-5 rounded-xl border border-red-700/30 hover:border-red-600/50 transition">
             <h3 className="font-bold text-red-300 mb-3 flex items-center gap-2 text-lg">
               <span className="text-xl">⚠️</span>
-              Key Issues
+              {t('district.keyIssues')}
             </h3>
             <ul className="space-y-2 text-sm text-gray-200">
               {insights.issues && insights.issues.length > 0 ? (
@@ -505,16 +538,17 @@ export default function DistrictView() {
                   </li>
                 ))
               ) : (
-                <li className="text-gray-400 italic">No issues identified</li>
+                <li className="text-gray-400 italic">{t('district.noIssues')}</li>
               )}
             </ul>
           </div>
+
 
           {/* Analytical Insights */}
           <div className="bg-gradient-to-br from-blue-800/40 to-blue-900/40 p-5 rounded-xl border border-blue-700/30 hover:border-blue-600/50 transition">
             <h3 className="font-bold text-blue-300 mb-3 flex items-center gap-2 text-lg">
               <span className="text-xl">🔍</span>
-              Analytical Insights
+              {t('district.analyticalInsights')}
             </h3>
             <ul className="space-y-2 text-sm text-gray-200">
               {insights.analytical && insights.analytical.length > 0 ? (
@@ -525,10 +559,11 @@ export default function DistrictView() {
                   </li>
                 ))
               ) : (
-                <li className="text-gray-400 italic">No analytical insights available</li>
+                <li className="text-gray-400 italic">{t('district.noAnalytical')}</li>
               )}
             </ul>
           </div>
+
 
           {/* Data Source */}
           <div className="mt-auto pt-5 border-t border-gray-700">
@@ -536,7 +571,7 @@ export default function DistrictView() {
               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
               </svg>
-              Data Source
+              {t('district.dataSource')}
             </p>
             <a
               href="https://nrega.nic.in"
@@ -544,11 +579,12 @@ export default function DistrictView() {
               target="_blank"
               rel="noreferrer"
             >
-              MGNREGA Official Portal
+              {t('district.mgnregaPortal')}
             </a>
           </div>
         </aside>
       </div>
+
 
       <Footer />
     </div>

@@ -1,13 +1,18 @@
 import React, { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate, Link } from "react-router-dom";
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, RadialBarChart, RadialBar,
   XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell
 } from "recharts";
 import Footer from "../components/Footer";
+import LanguageSwitcher from "../components/LanguageSwitcher";
+import LocationModal from "../components/LocationModal";
+
 
 // Colors for charts
 const COLORS = ["#4F46E5", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6"];
+
 
 // Calculate development index from metrics
 const calculateDevelopmentIndex = (metrics) => {
@@ -19,7 +24,9 @@ const calculateDevelopmentIndex = (metrics) => {
   return ((totalEmployed * 0.4 + totalJobs * 0.3 + totalWages * 0.3) / 1000).toFixed(2);
 };
 
+
 export default function Home() {
+  const { t } = useTranslation();
   const [districts, setDistricts] = useState([]);
   const [aggregatedMetrics, setAggregatedMetrics] = useState([]);
   const [insights, setInsights] = useState({
@@ -28,7 +35,10 @@ export default function Home() {
     analytical: []
   });
   const [loading, setLoading] = useState(true);
+  const [selectValue, setSelectValue] = useState("");
+  const [showLocationModal, setShowLocationModal] = useState(false);
   const navigate = useNavigate();
+
 
   useEffect(() => {
     const fetchAllData = async () => {
@@ -41,12 +51,14 @@ export default function Home() {
         const districtsData = await districtsRes.json();
         setDistricts(districtsData);
 
+
         // Fetch aggregated metrics
         const metricsRes = await fetch(
           `${import.meta.env.VITE_API_BASE_URL}/api/mgnrega/metrics/aggregated`
         );
         const metricsData = await metricsRes.json();
         setAggregatedMetrics(metricsData);
+
 
         // Fetch aggregated insights
         const insightsRes = await fetch(
@@ -55,6 +67,7 @@ export default function Home() {
         const insightsData = await insightsRes.json();
         setInsights(insightsData);
 
+
       } catch (err) {
         console.error("Error fetching data:", err);
       } finally {
@@ -62,62 +75,88 @@ export default function Home() {
       }
     };
 
+
     fetchAllData();
   }, []);
 
+
   const handleDistrictSelect = (districtName) => {
     if (districtName) {
+      setSelectValue("");
       navigate(`/district/${districtName}`);
     }
   };
+
+  const handleLocationSelect = (districtName) => {
+    setShowLocationModal(false);
+    navigate(`/district/${districtName}`);
+  };
+
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
         <div className="text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-          <p className="text-lg text-gray-600">Loading dashboard...</p>
+          <p className="text-lg text-gray-600">{t('common.loading')}</p>
         </div>
       </div>
     );
   }
+
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-100">
       {/* Fixed Header */}
       <header className="fixed top-0 left-0 w-full bg-gradient-to-r from-indigo-800 via-blue-700 to-indigo-900 text-white py-5 px-8 shadow-lg z-50 flex justify-between items-center">
         <h1 className="text-2xl font-bold tracking-wide">
-          MGNREGA District Dashboard
+          {t('header.title')}
         </h1>
+
 
         <div className="flex items-center space-x-6">
           <Link
             to="/"
             className="text-white hover:text-yellow-300 font-medium transition"
           >
-            Dashboard
+            {t('header.dashboard')}
           </Link>
           <Link
             to="/compare"
             className="text-white hover:text-yellow-300 font-medium transition"
           >
-            Compare Districts
+            {t('header.compare')}
           </Link>
 
-          <select
-            className="p-2 rounded-lg text-black font-semibold shadow-md w-56"
-            onChange={(e) => handleDistrictSelect(e.target.value)}
-            defaultValue=""
+          {/* View Location Button */}
+          <button
+            onClick={() => setShowLocationModal(true)}
+            className="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-4 py-2 rounded-lg hover:from-purple-600 hover:to-pink-600 transition font-semibold flex items-center gap-2"
           >
-            <option value="">Quick Navigate →</option>
+            <span>📍</span>
+            View Location
+          </button>
+
+          <select
+            value={selectValue}
+            onChange={(e) => {
+              setSelectValue(e.target.value);
+              handleDistrictSelect(e.target.value);
+            }}
+            className="p-2 rounded-lg text-black font-semibold shadow-md w-56"
+          >
+            <option value="">{t('header.quickNavigate')}</option>
             {districts.map((d) => (
               <option key={d.district_name} value={d.district_name}>
                 {d.district_name}
               </option>
             ))}
           </select>
+
+          <LanguageSwitcher />
         </div>
       </header>
+
 
       {/* Main Content */}
       <main className="flex flex-1 mt-24">
@@ -126,7 +165,7 @@ export default function Home() {
           {/* District Cards Section */}
           <div className="mb-8">
             <h2 className="text-2xl font-bold text-gray-800 mb-4">
-              📍 Select a District to View Details
+              📍 {t('home.selectDistrict')}
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
               {districts.map((district) => (
@@ -145,7 +184,7 @@ export default function Home() {
                     {district.state_name}
                   </p>
                   <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-200">
-                    <span className="text-xs text-gray-500">View Details</span>
+                    <span className="text-xs text-gray-500">{t('home.viewDetails')}</span>
                     <span className="text-indigo-600 font-bold">→</span>
                   </div>
                 </div>
@@ -153,10 +192,11 @@ export default function Home() {
             </div>
           </div>
 
+
           {/* Aggregated Metrics */}
           <div className="mb-8">
             <h2 className="text-2xl font-bold text-gray-800 mb-4">
-              📊 Overall Statistics Across All Districts
+              📊 {t('home.overallStats')}
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
               {aggregatedMetrics.map((metric) => (
@@ -176,12 +216,13 @@ export default function Home() {
             </div>
           </div>
 
+
           {/* Charts */}
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
             {/* Overall Metrics Bar Chart */}
             <div className="bg-white p-6 rounded-2xl shadow-lg">
               <h3 className="font-bold text-gray-800 mb-4">
-                📊 Metrics Overview
+                📊 {t('home.metricsOverview')}
               </h3>
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
@@ -201,10 +242,11 @@ export default function Home() {
               </div>
             </div>
 
+
             {/* Districts Distribution Pie */}
             <div className="bg-white p-6 rounded-2xl shadow-lg">
               <h3 className="font-bold text-gray-800 mb-4">
-                🥧 Districts Coverage
+                🥧 {t('home.districtsCoverage')}
               </h3>
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
@@ -231,10 +273,11 @@ export default function Home() {
               </div>
             </div>
 
+
             {/* Development Index */}
             <div className="bg-white p-6 rounded-2xl shadow-lg">
               <h3 className="font-bold text-gray-800 mb-4">
-                🌾 Overall Development Index
+                🌾 {t('home.developmentIndex')}
               </h3>
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
@@ -242,7 +285,7 @@ export default function Home() {
                     innerRadius="60%" 
                     outerRadius="100%" 
                     data={[{
-                      name: 'Development Index',
+                      name: t('home.developmentIndex'),
                       value: parseFloat(calculateDevelopmentIndex(aggregatedMetrics)),
                       fill: '#4F46E5'
                     }]} 
@@ -264,16 +307,18 @@ export default function Home() {
           </div>
         </div>
 
+
         {/* Right: Insights Panel */}
         <aside className="w-96 bg-gray-900 text-gray-100 p-6 shadow-2xl sticky top-0 h-screen overflow-y-auto">
           <h2 className="text-2xl font-bold text-yellow-400 mb-4">
-            📋 Overall Insights
+            📋 {t('home.overallInsights')}
           </h2>
+
 
           {/* Positive */}
           <div className="mb-6">
             <h3 className="text-lg font-semibold text-green-400 mb-2">
-              ✅ Positive Observations
+              {t('home.positive')}
             </h3>
             <ul className="list-disc list-inside text-gray-300 space-y-1 text-sm">
               {insights.positive.length > 0 ? (
@@ -281,15 +326,16 @@ export default function Home() {
                   <li key={index}>{item}</li>
                 ))
               ) : (
-                <li className="text-gray-500">No positive insights available</li>
+                <li className="text-gray-500">{t('home.noPositive')}</li>
               )}
             </ul>
           </div>
 
+
           {/* Issues */}
           <div className="mb-6">
             <h3 className="text-lg font-semibold text-red-400 mb-2">
-              ⚠️ Issues Identified
+              {t('home.issues')}
             </h3>
             <ul className="list-disc list-inside text-gray-300 space-y-1 text-sm">
               {insights.issues.length > 0 ? (
@@ -297,15 +343,16 @@ export default function Home() {
                   <li key={index}>{item}</li>
                 ))
               ) : (
-                <li className="text-gray-500">No issues identified</li>
+                <li className="text-gray-500">{t('home.noIssues')}</li>
               )}
             </ul>
           </div>
 
+
           {/* Analytical */}
           <div className="mb-6">
             <h3 className="text-lg font-semibold text-blue-400 mb-2">
-              🔍 Analytical Insights
+              {t('home.analytical')}
             </h3>
             <ul className="list-disc list-inside text-gray-300 space-y-1 text-sm">
               {insights.analytical.length > 0 ? (
@@ -313,10 +360,11 @@ export default function Home() {
                   <li key={index}>{item}</li>
                 ))
               ) : (
-                <li className="text-gray-500">No analytical insights available</li>
+                <li className="text-gray-500">{t('home.noAnalytical')}</li>
               )}
             </ul>
           </div>
+
 
           <div className="text-sm text-gray-400 mt-6 border-t border-gray-700 pt-4">
             Source:{" "}
@@ -331,6 +379,14 @@ export default function Home() {
           </div>
         </aside>
       </main>
+
+      {/* Location Modal */}
+      <LocationModal
+        isOpen={showLocationModal}
+        onClose={() => setShowLocationModal(false)}
+        onSelectDistrict={handleLocationSelect}
+        districts={districts}
+      />
 
       <Footer />
     </div>

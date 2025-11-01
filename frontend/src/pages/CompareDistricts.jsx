@@ -1,12 +1,16 @@
 import React, { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import {
   BarChart, Bar, LineChart, Line, AreaChart, Area,
   RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
   CartesianGrid, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer
 } from "recharts";
 import { Link } from "react-router-dom";
+import LanguageSwitcher from "../components/LanguageSwitcher";
+
 
 const CompareDistricts = () => {
+  const { t } = useTranslation();
   const [districts, setDistricts] = useState([]);
   const [district1, setDistrict1] = useState("");
   const [district2, setDistrict2] = useState("");
@@ -16,10 +20,12 @@ const CompareDistricts = () => {
   const [error, setError] = useState(null);
   const [winners, setWinners] = useState({});
 
+
   const DISTRICT_COLORS = {
     district1: "#3B82F6", // Blue
     district2: "#10B981", // Green
   };
+
 
   // Fetch all districts on mount
   useEffect(() => {
@@ -29,17 +35,20 @@ const CompareDistricts = () => {
       .catch((err) => console.error("Error fetching districts:", err));
   }, []);
 
+
   // Handle comparison
   const handleCompare = async () => {
     if (!district1 || !district2) {
-      alert("Please select two districts to compare");
+      alert(t('common.selectTwo'));
       return;
     }
 
+
     if (district1 === district2) {
-      alert("Please select two different districts");
+      alert(t('common.selectDifferent'));
       return;
     }
+
 
     setLoading(true);
     setError(null);
@@ -53,7 +62,7 @@ const CompareDistricts = () => {
       const data = await response.json();
       
       if (!data.chartData || data.chartData.length === 0) {
-        setError("No data returned from API");
+        setError(t('compare.noData'));
         setComparisonData(null);
       } else {
         setComparisonData(data);
@@ -62,12 +71,13 @@ const CompareDistricts = () => {
       }
     } catch (err) {
       console.error("Error comparing districts:", err);
-      setError(`Failed to fetch comparison data: ${err.message}`);
+      setError(`${t('compare.failedFetch')}: ${err.message}`);
       setComparisonData(null);
     } finally {
       setLoading(false);
     }
   };
+
 
   // Calculate which district wins each metric
   const calculateWinners = (data) => {
@@ -80,12 +90,14 @@ const CompareDistricts = () => {
     setWinners(winnersMap);
   };
 
+
   // Generate insights from comparison data
   const generateInsights = (data) => {
     if (!data || !data.chartData || data.chartData.length === 0) {
-      setNotes(["No data available for comparison."]);
+      setNotes([t('compare.noDataAvailable')]);
       return;
     }
+
 
     const insights = [];
     let district1Wins = 0;
@@ -98,6 +110,7 @@ const CompareDistricts = () => {
       if (dist1Value !== undefined && dist2Value !== undefined) {
         if (dist1Value > dist2Value) district1Wins++;
         else district2Wins++;
+
 
         const diff = Math.abs(dist1Value - dist2Value);
         const higherDistrict = dist1Value > dist2Value ? district1 : district2;
@@ -116,17 +129,20 @@ const CompareDistricts = () => {
       }
     });
 
+
     // Summary insight
     const overallWinner = district1Wins > district2Wins ? district1 : district2;
     insights.unshift({
       summary: true,
-      text: `🏆 ${overallWinner} leads overall with ${Math.max(district1Wins, district2Wins)} out of ${data.chartData.length} metrics`,
+      text: `🏆 ${overallWinner} ${t('compare.leadsOverall')} ${Math.max(district1Wins, district2Wins)} ${t('compare.outOf')} ${data.chartData.length} ${t('compare.metrics')}`,
       district1Wins,
       district2Wins
     });
 
+
     setNotes(insights);
   };
+
 
   const resetComparison = () => {
     setDistrict1("");
@@ -136,18 +152,21 @@ const CompareDistricts = () => {
     setWinners({});
   };
 
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
       {/* Header */}
       <header className="bg-gradient-to-r from-indigo-800 via-blue-700 to-indigo-900 text-white py-5 px-8 shadow-lg">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold">District Comparison</h1>
-          <div className="flex gap-6">
-            <Link to="/" className="hover:text-yellow-300 transition">Dashboard</Link>
-            <Link to="/compare" className="hover:text-yellow-300 transition">Compare</Link>
+          <h1 className="text-2xl font-bold">{t('compare.title')}</h1>
+          <div className="flex gap-6 items-center">
+            <Link to="/" className="hover:text-yellow-300 transition">{t('header.dashboard')}</Link>
+            <Link to="/compare" className="hover:text-yellow-300 transition">{t('header.compare')}</Link>
+            <LanguageSwitcher />
           </div>
         </div>
       </header>
+
 
       <div className="p-6">
         {/* Selection Panel */}
@@ -155,7 +174,7 @@ const CompareDistricts = () => {
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-3">
               <span className="text-3xl">⚖️</span>
-              Select Districts to Compare
+              {t('compare.selectDistricts')}
             </h2>
             {comparisonData && (
               <button
@@ -165,21 +184,22 @@ const CompareDistricts = () => {
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
-                Reset
+                {t('compare.reset')}
               </button>
             )}
           </div>
 
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
             {/* District 1 Selection */}
             <div className="space-y-3">
-              <label className="block text-sm font-semibold text-gray-700">District 1</label>
+              <label className="block text-sm font-semibold text-gray-700">{t('compare.district1')}</label>
               <select
                 value={district1}
                 onChange={(e) => setDistrict1(e.target.value)}
                 className="w-full p-4 border-2 border-blue-200 rounded-xl focus:ring-4 focus:ring-blue-200 focus:border-blue-500 transition text-lg font-medium"
               >
-                <option value="">Select First District</option>
+                <option value="">{t('compare.selectFirst')}</option>
                 {districts.map((d) => (
                   <option key={d.district_name} value={d.district_name} disabled={d.district_name === district2}>
                     {d.district_name}
@@ -188,28 +208,30 @@ const CompareDistricts = () => {
               </select>
               {district1 && (
                 <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-4 rounded-xl">
-                  <p className="text-sm opacity-90">Selected:</p>
+                  <p className="text-sm opacity-90">{t('compare.selected')}</p>
                   <p className="text-xl font-bold">{district1}</p>
                 </div>
               )}
             </div>
 
+
             {/* VS Badge */}
             <div className="flex items-center justify-center">
               <div className="bg-gradient-to-r from-purple-500 to-pink-500 text-white w-20 h-20 rounded-full flex items-center justify-center text-2xl font-bold shadow-lg transform hover:scale-110 transition">
-                VS
+                {t('compare.vs')}
               </div>
             </div>
 
+
             {/* District 2 Selection */}
             <div className="space-y-3">
-              <label className="block text-sm font-semibold text-gray-700">District 2</label>
+              <label className="block text-sm font-semibold text-gray-700">{t('compare.district2')}</label>
               <select
                 value={district2}
                 onChange={(e) => setDistrict2(e.target.value)}
                 className="w-full p-4 border-2 border-green-200 rounded-xl focus:ring-4 focus:ring-green-200 focus:border-green-500 transition text-lg font-medium"
               >
-                <option value="">Select Second District</option>
+                <option value="">{t('compare.selectSecond')}</option>
                 {districts.map((d) => (
                   <option key={d.district_name} value={d.district_name} disabled={d.district_name === district1}>
                     {d.district_name}
@@ -218,12 +240,13 @@ const CompareDistricts = () => {
               </select>
               {district2 && (
                 <div className="bg-gradient-to-r from-green-500 to-green-600 text-white p-4 rounded-xl">
-                  <p className="text-sm opacity-90">Selected:</p>
+                  <p className="text-sm opacity-90">{t('compare.selected')}</p>
                   <p className="text-xl font-bold">{district2}</p>
                 </div>
               )}
             </div>
           </div>
+
 
           {/* Compare Button */}
           <div className="flex justify-center mt-6">
@@ -235,19 +258,20 @@ const CompareDistricts = () => {
               {loading ? (
                 <>
                   <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
-                  Comparing...
+                  {t('compare.comparing')}
                 </>
               ) : (
                 <>
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                   </svg>
-                  Compare Districts
+                  {t('compare.compareBtn')}
                 </>
               )}
             </button>
           </div>
         </div>
+
 
         {/* Error Display */}
         {error && (
@@ -257,12 +281,13 @@ const CompareDistricts = () => {
                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
               </svg>
               <div>
-                <p className="font-semibold">Error:</p>
+                <p className="font-semibold">{t('common.error')}:</p>
                 <p>{error}</p>
               </div>
             </div>
           </div>
         )}
+
 
         {/* Results Section */}
         {!loading && comparisonData?.chartData?.length > 0 ? (
@@ -273,26 +298,27 @@ const CompareDistricts = () => {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="bg-white p-6 rounded-2xl shadow-lg text-center">
                   <div className="text-4xl mb-2">📊</div>
-                  <p className="text-gray-600 text-sm">Total Metrics</p>
+                  <p className="text-gray-600 text-sm">{t('compare.totalMetrics')}</p>
                   <p className="text-3xl font-bold text-indigo-600">{comparisonData.chartData.length}</p>
                 </div>
                 <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white p-6 rounded-2xl shadow-lg text-center">
                   <div className="text-4xl mb-2">🏆</div>
-                  <p className="text-blue-100 text-sm">{district1} Wins</p>
+                  <p className="text-blue-100 text-sm">{district1} {t('compare.wins')}</p>
                   <p className="text-3xl font-bold">{notes[0]?.district1Wins || 0}</p>
                 </div>
                 <div className="bg-gradient-to-br from-green-500 to-green-600 text-white p-6 rounded-2xl shadow-lg text-center">
                   <div className="text-4xl mb-2">🏆</div>
-                  <p className="text-green-100 text-sm">{district2} Wins</p>
+                  <p className="text-green-100 text-sm">{district2} {t('compare.wins')}</p>
                   <p className="text-3xl font-bold">{notes[0]?.district2Wins || 0}</p>
                 </div>
               </div>
+
 
               {/* Bar Chart */}
               <div className="bg-white rounded-2xl shadow-lg p-6">
                 <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
                   <span className="text-2xl">📊</span>
-                  Side-by-Side Comparison
+                  {t('compare.sideByComparison')}
                 </h3>
                 <ResponsiveContainer width="100%" height={400}>
                   <BarChart data={comparisonData.chartData}>
@@ -313,11 +339,12 @@ const CompareDistricts = () => {
                 </ResponsiveContainer>
               </div>
 
+
               {/* Radar Chart */}
               <div className="bg-white rounded-2xl shadow-lg p-6">
                 <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
                   <span className="text-2xl">🎯</span>
-                  Overall Performance Radar
+                  {t('compare.performanceRadar')}
                 </h3>
                 <ResponsiveContainer width="100%" height={400}>
                   <RadarChart data={comparisonData.chartData}>
@@ -344,11 +371,12 @@ const CompareDistricts = () => {
                 </ResponsiveContainer>
               </div>
 
+
               {/* Line Chart */}
               <div className="bg-white rounded-2xl shadow-lg p-6">
                 <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
                   <span className="text-2xl">📈</span>
-                  Performance Trend
+                  {t('compare.performanceTrend')}
                 </h3>
                 <ResponsiveContainer width="100%" height={350}>
                   <LineChart data={comparisonData.chartData}>
@@ -382,6 +410,7 @@ const CompareDistricts = () => {
               </div>
             </div>
 
+
             {/* Insights Panel */}
             <div className="space-y-6">
               {/* Winner Summary */}
@@ -389,7 +418,7 @@ const CompareDistricts = () => {
                 <div className="bg-gradient-to-br from-yellow-400 to-orange-500 text-white p-6 rounded-2xl shadow-xl">
                   <h3 className="text-xl font-bold mb-3 flex items-center gap-2">
                     <span className="text-2xl">🏆</span>
-                    Overall Winner
+                    {t('compare.overallWinner')}
                   </h3>
                   <p className="text-lg font-semibold">{notes[0].text}</p>
                   <div className="mt-4 grid grid-cols-2 gap-3">
@@ -405,11 +434,12 @@ const CompareDistricts = () => {
                 </div>
               )}
 
+
               {/* Detailed Insights */}
               <div className="bg-white rounded-2xl shadow-lg p-6 max-h-[600px] overflow-y-auto">
                 <h3 className="text-xl font-bold mb-4 flex items-center gap-2 sticky top-0 bg-white pb-3">
                   <span className="text-2xl">💡</span>
-                  Detailed Insights
+                  {t('compare.detailedInsights')}
                 </h3>
                 <div className="space-y-3">
                   {notes.slice(1).map((insight, index) => (
@@ -423,7 +453,7 @@ const CompareDistricts = () => {
                           <p className="text-sm text-gray-600">
                             <span className="font-bold" style={{ color: insight.winner === district1 ? DISTRICT_COLORS.district1 : DISTRICT_COLORS.district2 }}>
                               {insight.winner}
-                            </span> leads by <span className="font-bold text-orange-600">{insight.percentage}%</span>
+                            </span> {t('compare.leadsBy')} <span className="font-bold text-orange-600">{insight.percentage}%</span>
                           </p>
                           <div className="flex gap-3 mt-2 text-xs">
                             <span className="text-blue-600 font-semibold">{district1}: {insight.value1?.toLocaleString()}</span>
@@ -445,13 +475,14 @@ const CompareDistricts = () => {
             <svg className="w-32 h-32 text-gray-300 mb-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
             </svg>
-            <h3 className="text-2xl font-bold text-gray-600 mb-2">No Comparison Yet</h3>
-            <p className="text-gray-500">Select two districts and click "Compare Districts" to view the comparison</p>
+            <h3 className="text-2xl font-bold text-gray-600 mb-2">{t('compare.noComparison')}</h3>
+            <p className="text-gray-500">{t('compare.noComparisonDesc')}</p>
           </div>
         ) : null}
       </div>
     </div>
   );
 };
+
 
 export default CompareDistricts;

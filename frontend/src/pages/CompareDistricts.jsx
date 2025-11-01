@@ -240,7 +240,7 @@ const CompareDistricts = () => {
               ) : (
                 <>
                   <span>🔄</span>
-                  {t('compare.compare')}
+                  {t('compare')}
                 </>
               )}
             </button>

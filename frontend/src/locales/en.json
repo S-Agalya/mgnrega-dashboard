@@ -29,6 +29,7 @@
     "selectSecond": "Select Second District",
     "selected": "Selected:",
     "vs": "VS",
+    "compare": "Compare",
     "compareBtn": "Compare Districts",
     "comparing": "Comparing...",
     "reset": "Reset",
@@ -47,7 +48,13 @@
     "noComparisonDesc": "Select two districts and click \"Compare Districts\" to view the comparison",
     "noData": "No data returned from API",
     "failedFetch": "Failed to fetch comparison data",
-    "noDataAvailable": "No data available for comparison."
+    "noDataAvailable": "No data available for comparison.",
+    "charts": {
+      "employment": "Employment Comparison",
+      "expenditure": "Expenditure Comparison",
+      "performance": "Performance Metrics",
+      "inclusion": "Inclusion Metrics"
+    }
   },
   "district": {
     "title": "MGNREGA Dashboard",

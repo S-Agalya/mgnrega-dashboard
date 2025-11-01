@@ -1,22 +1,37 @@
-import i18n from 'i18next';
-import { initReactI18next } from 'react-i18next';
-import en from './en.json';
-import ta from './ta.json';
-
-const resources = {
-  en: { translation: en },
-  ta: { translation: ta }
-};
-
-i18n
-  .use(initReactI18next)
-  .init({
-    resources,
-    lng: localStorage.getItem('language') || 'en',
-    fallbackLng: 'en',
-    interpolation: {
-      escapeValue: false
+{
+  "compare": {
+    "title": "Compare Districts",
+    "district1": "Select First District",
+    "district2": "Select Second District",
+    "select": "Choose a district",
+    "selectBoth": "Please select both districts",
+    "selectDifferent": "Please select different districts",
+    "compare": "Compare",
+    "fetchError": "Failed to fetch districts",
+    "comparisonError": "Error comparing districts",
+    "noDistricts": "No districts available",
+    "metrics": {
+      "households": "Households Worked",
+      "individuals": "Individuals Worked",
+      "totalExp": "Total Expenditure",
+      "wages": "Wages Paid",
+      "avgWage": "Average Wage Rate",
+      "avgDays": "Average Days Employment",
+      "completedWorks": "Completed Works",
+      "womenPersonDays": "Women Person Days",
+      "scWorkers": "SC Workers",
+      "stWorkers": "ST Workers"
+    },
+    "charts": {
+      "employment": "Employment Comparison",
+      "expenditure": "Expenditure Comparison",
+      "performance": "Performance Metrics",
+      "inclusion": "Inclusion Metrics"
     }
-  });
-
-export default i18n;
+  },
+  "common": {
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success"
+  }
+}

@@ -89,7 +89,7 @@ const LocationModal = ({ isOpen, onClose, onSelectDistrict, districts }) => {
                   <p className={`font-bold text-lg ${
                     districtNotFound ? 'text-yellow-700' : 'text-green-700'
                   }`}>
-                    {userLocation.matchedDistrict}
+                    {userLocation.matchedDistrict.district_name}
                   </p>
                 </div>
               ) : (

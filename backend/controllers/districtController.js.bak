@@ -1,0 +1,732 @@
+import pool from "../config/db.js";import pool from "../config/db.js";
+
+
+
+// Get all districts// Get all districts
+
+export const getDistricts = async (req, res) => {export const getDistricts = async (req, res) => {
+
+    try {    try {
+
+        const result = await pool.query(        const result = await pool.query(
+
+            "SELECT DISTINCT district_code, district_name, state_name FROM mgnrega_data ORDER BY state_name, district_name"            "SELECT DISTINCT district_code, district_name, state_name FROM mgnrega_data ORDER BY state_name, district_name"
+
+        );        );
+
+        res.json(result.rows);        res.json(result.rows);
+
+    } catch (error) {    } catch (error) {
+
+        res.status(500).json({ error: error.message });        res.status(500).json({ error: error.message });
+
+    }    }
+
+};};
+
+
+
+// Get metrics for a specific district// Get metrics for a specific district
+
+export const getDistrictMetrics = async (req, res) => {export const getDistrictMetrics = async (req, res) => {
+
+    try {    try {
+
+        const { district_code } = req.params;        const { district_code } = req.params;
+
+                
+
+        const result = await pool.query(        const result = await pool.query(
+
+            `SELECT             `SELECT 
+
+                district_name,                district_name,
+
+                state_name,                state_name,
+
+                total_exp as total_expenditure,                total_exp as total_expenditure,
+
+                households_worked,                households_worked,
+
+                individuals_worked,                individuals_worked,
+
+                average_wage_rate,                average_wage_rate,
+
+                average_days_employment,                average_days_employment,
+
+                women_persondays,                women_persondays,
+
+                completed_works,                completed_works,
+
+                ongoing_works,                ongoing_works,
+
+                wages,                wages,
+
+                updated_at                updated_at
+
+             FROM mgnrega_data             FROM mgnrega_data
+
+             WHERE district_code = $1             WHERE district_code = $1
+
+             ORDER BY fin_year DESC, month DESC             ORDER BY fin_year DESC, month DESC
+
+             LIMIT 1`,             LIMIT 1`,
+
+            [district_code]            [district_code]
+
+        );        );
+
+                
+
+        if (result.rows.length === 0) {        if (result.rows.length === 0) {
+
+            return res.status(404).json({ error: "District not found" });            return res.status(404).json({ error: "District not found" });
+
+        }        }
+
+
+
+        res.json(result.rows[0]);        res.json(result.rows[0]);
+
+    } catch (error) {    } catch (error) {
+
+        res.status(500).json({ error: error.message });        res.status(500).json({ error: error.message });
+
+    }    }
+
+};};
+
+
+
+// Get aggregated metrics for all districts// Get aggregated metrics for all districts
+
+export const getAggregatedMetrics = async (req, res) => {export const getAggregatedMetrics = async (req, res) => {
+
+    try {    try {
+
+        const metrics = await pool.query(`        const metrics = await pool.query(`
+
+            WITH latest_data AS (            WITH latest_data AS (
+
+                SELECT DISTINCT ON (district_code) *                SELECT DISTINCT ON (district_code) *
+
+                FROM mgnrega_data                FROM mgnrega_data
+
+                ORDER BY district_code, fin_year DESC, month DESC                ORDER BY district_code, fin_year DESC, month DESC
+
+            )            )
+
+            SELECT             SELECT 
+
+                SUM(total_exp) as total_expenditure,                SUM(total_exp) as total_expenditure,
+
+                SUM(households_worked) as total_households,                SUM(households_worked) as total_households,
+
+                SUM(individuals_worked) as total_individuals,                SUM(individuals_worked) as total_individuals,
+
+                ROUND(AVG(average_wage_rate), 2) as avg_wage_rate,                ROUND(AVG(average_wage_rate), 2) as avg_wage_rate,
+
+                ROUND(AVG(average_days_employment), 2) as avg_employment_days,                ROUND(AVG(average_days_employment), 2) as avg_employment_days,
+
+                SUM(completed_works) as total_completed_works,                SUM(completed_works) as total_completed_works,
+
+                SUM(ongoing_works) as total_ongoing_works                SUM(ongoing_works) as total_ongoing_works
+
+            FROM latest_data            FROM latest_data
+
+        `);        `);
+
+        res.json(metrics.rows[0]);        res.json(metrics.rows[0]);
+
+    } catch (error) {    } catch (error) {
+
+        res.status(500).json({ error: error.message });        res.status(500).json({ error: error.message });
+
+    }    }
+
+};};
+
+
+
+// Get all data for a specific district// Get all data for a specific district
+
+export const getDistrictData = async (req, res) => {export const getDistrictData = async (req, res) => {
+
+    try {    try {
+
+        const { district_code } = req.params;        const { district_code } = req.params;
+
+                
+
+        // Get current metrics        // Get current metrics
+
+        const currentMetrics = await pool.query(        const currentMetrics = await pool.query(
+
+            `SELECT *            `SELECT *
+
+             FROM mgnrega_data              FROM mgnrega_data 
+
+             WHERE district_code = $1             WHERE district_code = $1
+
+             ORDER BY fin_year DESC, month DESC             ORDER BY fin_year DESC, month DESC
+
+             LIMIT 1`,             LIMIT 1`,
+
+            [district_code]            [district_code]
+
+        );        );
+
+                
+
+        if (currentMetrics.rows.length === 0) {        if (currentMetrics.rows.length === 0) {
+
+            return res.status(404).json({ error: "District not found" });            return res.status(404).json({ error: "District not found" });
+
+        }        }
+
+                
+
+        // Get historical monthly data        // Get historical monthly data
+
+        const monthlyData = await pool.query(        const monthlyData = await pool.query(
+
+            `SELECT             `SELECT 
+
+                fin_year,                fin_year,
+
+                month,                month,
+
+                households_worked as employed,                households_worked as employed,
+
+                total_jobcards_issued as jobs_created,                total_jobcards_issued as jobs_created,
+
+                wages as wages_paid,                wages as wages_paid,
+
+                women_persondays,                women_persondays,
+
+                sc_persondays,                sc_persondays,
+
+                st_persondays,                st_persondays,
+
+                total_exp as total_expenditure                total_exp as total_expenditure
+
+             FROM mgnrega_data              FROM mgnrega_data 
+
+             WHERE district_code = $1             WHERE district_code = $1
+
+             ORDER BY fin_year DESC,              ORDER BY fin_year DESC, 
+
+                CASE month                 CASE month 
+
+                    WHEN 'Jan' THEN 1                     WHEN 'Jan' THEN 1 
+
+                    WHEN 'Feb' THEN 2                     WHEN 'Feb' THEN 2 
+
+                    WHEN 'Mar' THEN 3                     WHEN 'Mar' THEN 3 
+
+                    WHEN 'Apr' THEN 4                     WHEN 'Apr' THEN 4 
+
+                    WHEN 'May' THEN 5                     WHEN 'May' THEN 5 
+
+                    WHEN 'Jun' THEN 6                     WHEN 'Jun' THEN 6 
+
+                    WHEN 'Jul' THEN 7                     WHEN 'Jul' THEN 7 
+
+                    WHEN 'Aug' THEN 8                     WHEN 'Aug' THEN 8 
+
+                    WHEN 'Sep' THEN 9                     WHEN 'Sep' THEN 9 
+
+                    WHEN 'Oct' THEN 10                     WHEN 'Oct' THEN 10 
+
+                    WHEN 'Nov' THEN 11                     WHEN 'Nov' THEN 11 
+
+                    WHEN 'Dec' THEN 12                    WHEN 'Dec' THEN 12
+
+                END DESC                END DESC
+
+             LIMIT 12`,             LIMIT 12`,
+
+            [district_code]            [district_code]
+
+        );        );
+
+
+
+        // Get comparative stats with state average        // Get comparative stats with state average
+
+        const comparativeStats = await pool.query(        const comparativeStats = await pool.query(
+
+            `WITH district_stats AS (            `WITH district_stats AS (
+
+                SELECT state_name                SELECT state_name
+
+                FROM mgnrega_data                FROM mgnrega_data
+
+                WHERE district_code = $1                WHERE district_code = $1
+
+                LIMIT 1                LIMIT 1
+
+            ),            ),
+
+            state_averages AS (            state_averages AS (
+
+                SELECT                 SELECT 
+
+                    ROUND(AVG(total_exp), 2) as avg_state_expenditure,                    ROUND(AVG(total_exp), 2) as avg_state_expenditure,
+
+                    ROUND(AVG(households_worked), 2) as avg_state_households,                    ROUND(AVG(households_worked), 2) as avg_state_households,
+
+                    ROUND(AVG(average_wage_rate), 2) as avg_state_wage,                    ROUND(AVG(average_wage_rate), 2) as avg_state_wage,
+
+                    ROUND(AVG(average_days_employment), 2) as avg_state_employment_days                    ROUND(AVG(average_days_employment), 2) as avg_state_employment_days
+
+                FROM mgnrega_data md                FROM mgnrega_data md
+
+                JOIN district_stats ds ON md.state_name = ds.state_name                JOIN district_stats ds ON md.state_name = ds.state_name
+
+                WHERE fin_year = (SELECT MAX(fin_year) FROM mgnrega_data)                WHERE fin_year = (SELECT MAX(fin_year) FROM mgnrega_data)
+
+            )            )
+
+            SELECT * FROM state_averages`,            SELECT * FROM state_averages`,
+
+            [district_code]            [district_code]
+
+        );        );
+
+
+
+        // Generate insights based on the data        // Generate insights based on the data
+
+        const insights = {        const insights = {
+
+            positive: [],            positive: [],
+
+            issues: [],            issues: [],
+
+            analytical: []            analytical: []
+
+        };        };
+
+
+
+        const current = currentMetrics.rows[0];        const current = currentMetrics.rows[0];
+
+        const stateAvg = comparativeStats.rows[0];        const stateAvg = comparativeStats.rows[0];
+
+
+
+        if (current.households_worked > stateAvg.avg_state_households) {        if (current.households_worked > stateAvg.avg_state_households) {
+
+            insights.positive.push('Above state average in household employment');            insights.positive.push('Above state average in household employment');
+
+        }        }
+
+
+
+        if (current.average_wage_rate > stateAvg.avg_state_wage) {        if (current.average_wage_rate > stateAvg.avg_state_wage) {
+
+            insights.positive.push('Higher than state average wages');            insights.positive.push('Higher than state average wages');
+
+        }        }
+
+
+
+        if (current.average_days_employment < 45) { // MGNREGA guarantees 100 days        if (current.average_days_employment < 45) { // MGNREGA guarantees 100 days
+
+            insights.issues.push('Below target employment days per household');            insights.issues.push('Below target employment days per household');
+
+        }        }
+
+
+
+        insights.analytical.push(        insights.analytical.push(
+
+            `Average employment: ${current.average_days_employment} days per household`,            `Average employment: ${current.average_days_employment} days per household`,
+
+            `Total expenditure: ₹${current.total_exp.toLocaleString()}`,            `Total expenditure: ₹${current.total_exp.toLocaleString()}`,
+
+            `Active workers: ${current.active_workers.toLocaleString()}`            `Active workers: ${current.active_workers.toLocaleString()}`
+
+        );        );
+
+                
+
+        res.json({        res.json({
+
+            currentMetrics: currentMetrics.rows[0],            currentMetrics: currentMetrics.rows[0],
+
+            monthlyData: monthlyData.rows,            monthlyData: monthlyData.rows,
+
+            comparativeStats: comparativeStats.rows[0],            comparativeStats: comparativeStats.rows[0],
+
+            insights            insights
+
+        });        });
+
+    } catch (error) {    } catch (error) {
+
+        res.status(500).json({ error: error.message });        res.status(500).json({ error: error.message });
+
+    }    }
+
+};};
+
+// Get metrics for a specific district
+export const getDistrictMetrics = async (req, res) => {
+    try {
+        const { district_code } = req.params;
+        
+        const result = await pool.query(
+            `SELECT 
+                district_name,
+                state_name,
+                total_exp as total_expenditure,
+                households_worked,
+                individuals_worked,
+                average_wage_rate,
+                average_days_employment,
+                women_persondays,
+                completed_works,
+                ongoing_works,
+                wages,
+                updated_at
+             FROM mgnrega_data
+             WHERE district_code = $1
+             ORDER BY fin_year DESC, month DESC
+             LIMIT 1`,
+            [district_code]
+        );
+        
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: "District not found" });
+        }
+
+        res.json(result.rows[0]);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// Get aggregated metrics for all districts
+export const getAggregatedMetrics = async (req, res) => {
+    try {
+        const metrics = await pool.query(`
+            WITH latest_data AS (
+                SELECT DISTINCT ON (district_code) *
+                FROM mgnrega_data
+                ORDER BY district_code, fin_year DESC, month DESC
+            )
+            SELECT 
+                SUM(total_exp) as total_expenditure,
+                SUM(households_worked) as total_households,
+                SUM(individuals_worked) as total_individuals,
+                ROUND(AVG(average_wage_rate), 2) as avg_wage_rate,
+                ROUND(AVG(average_days_employment), 2) as avg_employment_days,
+                SUM(completed_works) as total_completed_works,
+                SUM(ongoing_works) as total_ongoing_works
+            FROM latest_data
+        `);
+        res.json(metrics.rows[0]);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// Get all data for a specific district
+export const getDistrictData = async (req, res) => {
+    try {
+        const { district_code } = req.params;
+        
+        // Get current metrics
+        const currentMetrics = await pool.query(
+            `SELECT *
+             FROM mgnrega_data 
+             WHERE district_code = $1
+             ORDER BY fin_year DESC, month DESC
+             LIMIT 1`,
+            [district_code]
+        );
+        
+        if (currentMetrics.rows.length === 0) {
+            return res.status(404).json({ error: "District not found" });
+        }
+        
+        // Get historical monthly data
+        const monthlyData = await pool.query(
+            `SELECT 
+                fin_year,
+                month,
+                households_worked as employed,
+                total_jobcards_issued as jobs_created,
+                wages as wages_paid,
+                women_persondays,
+                sc_persondays,
+                st_persondays,
+                total_exp as total_expenditure
+             FROM mgnrega_data 
+             WHERE district_code = $1
+             ORDER BY fin_year DESC, 
+                CASE month 
+                    WHEN 'Jan' THEN 1 
+                    WHEN 'Feb' THEN 2 
+                    WHEN 'Mar' THEN 3 
+                    WHEN 'Apr' THEN 4 
+                    WHEN 'May' THEN 5 
+                    WHEN 'Jun' THEN 6 
+                    WHEN 'Jul' THEN 7 
+                    WHEN 'Aug' THEN 8 
+                    WHEN 'Sep' THEN 9 
+                    WHEN 'Oct' THEN 10 
+                    WHEN 'Nov' THEN 11 
+                    WHEN 'Dec' THEN 12
+                END DESC
+             LIMIT 12`,
+            [district_code]
+        );
+
+        // Get comparative stats with state average
+        const comparativeStats = await pool.query(
+            `WITH district_stats AS (
+                SELECT state_name
+                FROM mgnrega_data
+                WHERE district_code = $1
+                LIMIT 1
+            ),
+            state_averages AS (
+                SELECT 
+                    ROUND(AVG(total_exp), 2) as avg_state_expenditure,
+                    ROUND(AVG(households_worked), 2) as avg_state_households,
+                    ROUND(AVG(average_wage_rate), 2) as avg_state_wage,
+                    ROUND(AVG(average_days_employment), 2) as avg_state_employment_days
+                FROM mgnrega_data md
+                JOIN district_stats ds ON md.state_name = ds.state_name
+                WHERE fin_year = (SELECT MAX(fin_year) FROM mgnrega_data)
+            )
+            SELECT * FROM state_averages`,
+            [district_code]
+        );
+
+        // Generate insights based on the data
+        const insights = {
+            positive: [],
+            issues: [],
+            analytical: []
+        };
+
+        const current = currentMetrics.rows[0];
+        const stateAvg = comparativeStats.rows[0];
+
+        if (current.households_worked > stateAvg.avg_state_households) {
+            insights.positive.push('Above state average in household employment');
+        }
+
+        if (current.average_wage_rate > stateAvg.avg_state_wage) {
+            insights.positive.push('Higher than state average wages');
+        }
+
+        if (current.average_days_employment < 45) { // MGNREGA guarantees 100 days
+            insights.issues.push('Below target employment days per household');
+        }
+
+        insights.analytical.push(
+            `Average employment: ${current.average_days_employment} days per household`,
+            `Total expenditure: ₹${current.total_exp.toLocaleString()}`,
+            `Active workers: ${current.active_workers.toLocaleString()}`
+        );
+        
+        res.json({
+            currentMetrics: currentMetrics.rows[0],
+            monthlyData: monthlyData.rows,
+            comparativeStats: comparativeStats.rows[0],
+            insights
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+            analytical: insights.rows.filter(i => i.insight_type === 'analytical').map(i => i.description)
+        };
+        
+        res.json(formattedInsights);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// Get aggregated insights across all districts
+export const getAggregatedInsights = async (req, res) => {
+    try {
+        const insights = await pool.query(`
+            SELECT DISTINCT ON (i.description) i.insight_type, i.description
+            FROM district_insights i
+            JOIN district_config d ON d.id = i.district_id
+            WHERE d.is_active = true
+            ORDER BY i.description, i.insight_type
+            LIMIT 15
+        `);
+        
+        // Transform into required format
+        const formattedInsights = {
+            positive: insights.rows.filter(i => i.insight_type === 'positive').map(i => i.description),
+            issues: insights.rows.filter(i => i.insight_type === 'issue').map(i => i.description),
+            analytical: insights.rows.filter(i => i.insight_type === 'analytical').map(i => i.description)
+        };
+        
+        res.json(formattedInsights);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// Compare districts - FIXED VERSION
+export const compareDistricts = async (req, res) => {
+    try {
+        const { districts } = req.query;
+        
+        if (!districts) {
+            return res.status(400).json({ error: 'Districts parameter is required' });
+        }
+        
+        const districtList = districts.split(',').map(d => d.trim());
+                
+        const comparisons = await pool.query(
+            `SELECT 
+                d.district_name,
+                m.metric_name,
+                m.metric_value,
+                m.metric_icon
+             FROM district_config d
+             JOIN district_metrics m ON m.district_id = d.id
+             WHERE d.district_name = ANY($1)
+             ORDER BY d.district_name, m.metric_name`,
+            [districtList]
+        );
+                
+        if (comparisons.rows.length === 0) {
+            return res.status(404).json({ 
+                error: 'No data found for the specified districts',
+                requestedDistricts: districtList 
+            });
+        }
+        
+        // Transform data for comparison charts
+        const transformedData = comparisons.rows.reduce((acc, curr) => {
+            if (!acc[curr.metric_name]) {
+                acc[curr.metric_name] = {
+                    icon: curr.metric_icon
+                };
+            }
+            acc[curr.metric_name][curr.district_name] = parseFloat(curr.metric_value);
+            return acc;
+        }, {});
+        
+        // Create chart data array in the format frontend expects
+        const chartData = Object.entries(transformedData).map(([metric, data]) => {
+            const { icon, ...districtValues } = data;
+            return {
+                metricName: metric,
+                icon: icon,
+                ...districtValues
+            };
+        });
+                
+        // Return in the format frontend expects
+        res.json({ 
+            metrics: transformedData, 
+            chartData: chartData 
+        });
+    } catch (error) {
+        console.error('Error comparing districts:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// Get district statistics for charts
+export const getDistrictStats = async (req, res) => {
+    try {
+        const { district } = req.params;
+        
+        // Get employment growth rate
+        const employmentGrowth = await pool.query(
+            `SELECT month, year, employed
+             FROM monthly_district_stats ms
+             JOIN district_config d ON d.id = ms.district_id
+             WHERE d.district_name = $1
+             ORDER BY year, 
+                CASE month 
+                    WHEN 'Jan' THEN 1 
+                    WHEN 'Feb' THEN 2 
+                    WHEN 'Mar' THEN 3 
+                    WHEN 'Apr' THEN 4 
+                    WHEN 'May' THEN 5 
+                    WHEN 'Jun' THEN 6 
+                    WHEN 'Jul' THEN 7 
+                    WHEN 'Aug' THEN 8 
+                    WHEN 'Sep' THEN 9 
+                    WHEN 'Oct' THEN 10 
+                    WHEN 'Nov' THEN 11 
+                    WHEN 'Dec' THEN 12
+                END`,
+            [district]
+        );
+
+        // Get jobs vs wages data
+        const jobsWages = await pool.query(
+            `SELECT month, jobs_created, wages_paid
+             FROM monthly_district_stats ms
+             JOIN district_config d ON d.id = ms.district_id
+             WHERE d.district_name = $1
+             ORDER BY year DESC, 
+                CASE month 
+                    WHEN 'Jan' THEN 1 
+                    WHEN 'Feb' THEN 2 
+                    WHEN 'Mar' THEN 3 
+                    WHEN 'Apr' THEN 4 
+                    WHEN 'May' THEN 5 
+                    WHEN 'Jun' THEN 6 
+                    WHEN 'Jul' THEN 7 
+                    WHEN 'Aug' THEN 8 
+                    WHEN 'Sep' THEN 9 
+                    WHEN 'Oct' THEN 10 
+                    WHEN 'Nov' THEN 11 
+                    WHEN 'Dec' THEN 12
+                END
+             LIMIT 12`,
+            [district]
+        );
+
+        res.json({
+            employmentGrowth: employmentGrowth.rows,
+            jobsWages: jobsWages.rows
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// Get rural development index
+export const getRuralDevelopmentIndex = async (req, res) => {
+    try {
+        const { district } = req.params;
+        
+        const result = await pool.query(
+            `SELECT 
+                (SUM(CASE WHEN metric_name = 'Jobs Created' THEN metric_value ELSE 0 END) * 0.4 +
+                 SUM(CASE WHEN metric_name = 'Wages Paid' THEN metric_value ELSE 0 END) * 0.3 +
+                 SUM(CASE WHEN metric_name = 'People Employed' THEN metric_value ELSE 0 END) * 0.3
+                ) / 1000 as development_index
+             FROM district_metrics m
+             JOIN district_config d ON d.id = m.district_id
+             WHERE d.district_name = $1
+             GROUP BY d.district_name`,
+            [district]
+        );
+        
+        res.json({
+            ruralDevelopmentIndex: result.rows[0]?.development_index || 0
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};

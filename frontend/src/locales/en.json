@@ -67,11 +67,42 @@
     "completedWorks": "Completed Works",
     "ongoingWorks": "Ongoing Works",
     "districtInsights": "District Insights",
+    "charts": {
+      "employment": "Employment Trends",
+      "works": "Works Progress"
+    },
     "positiveOutcomes": "Positive Outcomes",
     "keyIssues": "Key Issues",
     "analyticalInsights": "Analytical Insights",
     "dataSource": "Data Source",
     "mgnregaPortal": "MGNREGA Official Portal",
+    "metrics": {
+      "summary": "District Performance Dashboard",
+      "households": "Total Households",
+      "individuals": "Total Individuals",
+      "avgDaysPerHH": "Average Days per Household",
+      "totalExpenditure": "Total Expenditure",
+      "avgWage": "Average Daily Wage",
+      "materialExpense": "Material Expenses",
+      "scWorkers": "SC Workers",
+      "stWorkers": "ST Workers",
+      "differentlyAbled": "Differently Abled Workers",
+      "completedWorks": "Completed Works",
+      "ongoingWorks": "Ongoing Works",
+      "totalWorks": "Total Works"
+    },
+    "sections": {
+      "employment": "Employment",
+      "financial": "Financial Overview",
+      "inclusion": "Social Inclusion",
+      "works": "Works Progress"
+    },
+    "lastUpdated": "Last Updated",
+    "insights": {
+      "positive": "Positive Outcomes",
+      "issues": "Key Issues",
+      "analytical": "Analytical Insights"
+    },
     "noOutcomes": "No positive outcomes recorded",
     "noIssues": "No issues identified",
     "noAnalytical": "No analytical insights available",

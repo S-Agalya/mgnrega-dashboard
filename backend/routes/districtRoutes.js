@@ -3,12 +3,8 @@ import {
     getDistricts,
     getDistrictMetrics,
     getDistrictData,
-    getDistrictInsights,
-    compareDistricts,
-    getDistrictStats,
-    getRuralDevelopmentIndex,
     getAggregatedMetrics,
-    getAggregatedInsights
+    compareDistricts
 } from "../controllers/districtController.js";
 
 const router = express.Router();
@@ -16,28 +12,16 @@ const router = express.Router();
 // Get all districts
 router.get("/districts", getDistricts);
 
-// Get specific district data
-router.get("/district/:district", getDistrictData);
-
-// Get district metrics
-router.get("/district/:district/metrics", getDistrictMetrics);
-
-// Get aggregated metrics
-router.get("/metrics/aggregated", getAggregatedMetrics);
-
-// Get aggregated insights
-router.get("/insights/aggregated", getAggregatedInsights);
-
-// Get district insights
-router.get("/district/:district/insights", getDistrictInsights);
-
 // Compare districts
-router.get("/compare", compareDistricts);
+router.get("/districts/compare", compareDistricts);
 
-// Get district statistics for charts
-router.get("/district/:district/stats", getDistrictStats);
+// Get metrics for a specific district
+router.get("/districts/:district_code/metrics", getDistrictMetrics);
 
-// Get rural development index
-router.get("/district/:district/development-index", getRuralDevelopmentIndex);
+// Get all data for a specific district
+router.get("/districts/:district_code/data", getDistrictData);
+
+// Get aggregated metrics across all districts
+router.get("/metrics/aggregated", getAggregatedMetrics);
 
 export default router;

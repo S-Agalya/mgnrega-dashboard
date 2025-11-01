@@ -16,7 +16,7 @@ export const useGeolocation = () => {
       
       // Check if district name appears anywhere in the address
       if (lowerAddress.includes(districtName)) {
-        return district.district_name;
+        return district;
       }
     }
 

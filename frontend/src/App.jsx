@@ -8,7 +8,7 @@ function App() {
     <Router>
       <Routes>
         <Route path="/" element={<Home />} />
-        <Route path="/district/:name" element={<DistrictView />} />
+        <Route path="/district/:district_code" element={<DistrictView />} />
         <Route path="/compare" element={<CompareDistricts />} />
       </Routes>
     </Router>

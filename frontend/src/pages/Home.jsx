@@ -14,15 +14,6 @@ import LocationModal from "../components/LocationModal";
 const COLORS = ["#4F46E5", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6"];
 
 
-// Calculate development index from metrics
-const calculateDevelopmentIndex = (metrics) => {
-  if (!metrics?.length) return 0;
-  const totalEmployed = metrics.find(m => m.metric_name === 'People Employed')?.metric_value || 0;
-  const totalJobs = metrics.find(m => m.metric_name === 'Jobs Created')?.metric_value || 0;
-  const totalWages = metrics.find(m => m.metric_name === 'Wages Paid')?.metric_value || 0;
-  
-  return ((totalEmployed * 0.4 + totalJobs * 0.3 + totalWages * 0.3) / 1000).toFixed(2);
-};
 
 
 export default function Home() {
@@ -51,22 +42,33 @@ export default function Home() {
         const districtsData = await districtsRes.json();
         setDistricts(districtsData);
 
-
         // Fetch aggregated metrics
         const metricsRes = await fetch(
           `${import.meta.env.VITE_API_BASE_URL}/api/mgnrega/metrics/aggregated`
         );
         const metricsData = await metricsRes.json();
-        setAggregatedMetrics(metricsData);
+        
+        // Transform data for charts
+        const transformedMetrics = [
+          { name: t('metrics.totalDistricts'), value: metricsData.total_districts },
+          { name: t('metrics.totalHouseholds'), value: metricsData.total_households },
+          { name: t('metrics.avgWageRate'), value: metricsData.avg_wage_rate }
+        ];
+        
+        setAggregatedMetrics(transformedMetrics);
 
-
-        // Fetch aggregated insights
-        const insightsRes = await fetch(
-          `${import.meta.env.VITE_API_BASE_URL}/api/mgnrega/insights/aggregated`
-        );
-        const insightsData = await insightsRes.json();
-        setInsights(insightsData);
-
+        // Generate insights based on the data
+        const generatedInsights = {
+          positive: [
+            `${t('insights.totalDistricts')}: ${metricsData.total_districts}`,
+            `${t('insights.employedHouseholds')}: ${metricsData.total_households.toLocaleString()}`
+          ],
+          issues: [],
+          analytical: [
+            `${t('insights.avgWage')}: ₹${metricsData.avg_wage_rate.toLocaleString()}`
+          ]
+        };
+        setInsights(generatedInsights);
 
       } catch (err) {
         console.error("Error fetching data:", err);
@@ -75,21 +77,20 @@ export default function Home() {
       }
     };
 
-
     fetchAllData();
   }, []);
 
 
-  const handleDistrictSelect = (districtName) => {
-    if (districtName) {
-      setSelectValue("");
-      navigate(`/district/${districtName}`);
+  const handleDistrictSelect = (districtCode) => {
+    if (districtCode) {
+      setSelectValue(districtCode);
+      navigate(`/district/${districtCode}`);
     }
   };
 
-  const handleLocationSelect = (districtName) => {
+  const handleLocationSelect = (district) => {
     setShowLocationModal(false);
-    navigate(`/district/${districtName}`);
+    handleDistrictSelect(district.district_code);
   };
 
 
@@ -147,8 +148,8 @@ export default function Home() {
           >
             <option value="">{t('header.quickNavigate')}</option>
             {districts.map((d) => (
-              <option key={d.district_name} value={d.district_name}>
-                {d.district_name}
+              <option key={d.district_code} value={d.district_code}>
+                {d.district_name} ({d.state_name})
               </option>
             ))}
           </select>
@@ -170,8 +171,8 @@ export default function Home() {
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
               {districts.map((district) => (
                 <div
-                  key={district.district_name}
-                  onClick={() => handleDistrictSelect(district.district_name)}
+                  key={district.district_code}
+                  onClick={() => handleDistrictSelect(district.district_code)}
                   className="bg-white p-6 rounded-2xl shadow-lg hover:shadow-2xl transform hover:-translate-y-2 transition-all duration-300 cursor-pointer border-2 border-transparent hover:border-indigo-500"
                 >
                   <div className="flex items-center justify-between mb-3">
@@ -198,113 +199,32 @@ export default function Home() {
             <h2 className="text-2xl font-bold text-gray-800 mb-4">
               📊 {t('home.overallStats')}
             </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-              {aggregatedMetrics.map((metric) => (
-                <div
-                  key={metric.metric_name}
-                  className="bg-white p-6 rounded-2xl shadow-lg hover:shadow-2xl transform hover:-translate-y-1 transition-all duration-300"
-                >
-                  <div className="text-4xl mb-2">{metric.metric_icon}</div>
-                  <h3 className="text-gray-700 font-semibold text-sm mb-1">
-                    {metric.metric_name}
-                  </h3>
-                  <p className="text-3xl font-bold text-indigo-700">
-                    {parseFloat(metric.metric_value).toLocaleString()}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-
-          {/* Charts */}
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-            {/* Overall Metrics Bar Chart */}
-            <div className="bg-white p-6 rounded-2xl shadow-lg">
-              <h3 className="font-bold text-gray-800 mb-4">
-                📊 {t('home.metricsOverview')}
-              </h3>
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={aggregatedMetrics}>
-                    <XAxis 
-                      dataKey="metric_name" 
-                      angle={-15} 
-                      textAnchor="end" 
-                      height={80}
-                      fontSize={10}
-                    />
-                    <YAxis />
-                    <Tooltip />
-                    <Bar dataKey="metric_value" fill="#4F46E5" radius={[8, 8, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <div className="bg-white p-6 rounded-2xl shadow-lg hover:shadow-2xl transform hover:-translate-y-1 transition-all duration-300">
+                <div className="text-4xl mb-2">💰</div>
+                <h3 className="text-gray-700 font-semibold text-sm mb-1">
+                  Average Daily Wage Rate
+                </h3>
+                <p className="text-3xl font-bold text-green-600">
+                  ₹{aggregatedMetrics[2]?.value.toLocaleString() || 0}
+                </p>
+                <p className="text-sm text-gray-500 mt-2">Average wage per day across all Tamil Nadu districts</p>
               </div>
-            </div>
-
-
-            {/* Districts Distribution Pie */}
-            <div className="bg-white p-6 rounded-2xl shadow-lg">
-              <h3 className="font-bold text-gray-800 mb-4">
-                🥧 {t('home.districtsCoverage')}
-              </h3>
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={districts.map(d => ({
-                        name: d.district_name,
-                        value: 1
-                      }))}
-                      dataKey="value"
-                      nameKey="name"
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={80}
-                    >
-                      {districts.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
-
-            {/* Development Index */}
-            <div className="bg-white p-6 rounded-2xl shadow-lg">
-              <h3 className="font-bold text-gray-800 mb-4">
-                🌾 {t('home.developmentIndex')}
-              </h3>
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <RadialBarChart 
-                    innerRadius="60%" 
-                    outerRadius="100%" 
-                    data={[{
-                      name: t('home.developmentIndex'),
-                      value: parseFloat(calculateDevelopmentIndex(aggregatedMetrics)),
-                      fill: '#4F46E5'
-                    }]} 
-                    startAngle={180} 
-                    endAngle={0}
-                  >
-                    <RadialBar
-                      minAngle={15}
-                      background
-                      clockWise={true}
-                      dataKey="value"
-                    />
-                    <Legend />
-                    <Tooltip />
-                  </RadialBarChart>
-                </ResponsiveContainer>
+              
+              <div className="bg-white p-6 rounded-2xl shadow-lg hover:shadow-2xl transform hover:-translate-y-1 transition-all duration-300">
+                <div className="text-4xl mb-2">👥</div>
+                <h3 className="text-gray-700 font-semibold text-sm mb-1">
+                  Total Households Employed
+                </h3>
+                <p className="text-3xl font-bold text-indigo-600">
+                  {aggregatedMetrics[1]?.value.toLocaleString() || 0}
+                </p>
+                <p className="text-sm text-gray-500 mt-2">Total number of households working across Tamil Nadu</p>
               </div>
             </div>
           </div>
+
+
         </div>
 
 
